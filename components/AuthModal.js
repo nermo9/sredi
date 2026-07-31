@@ -29,20 +29,18 @@ export default function AuthModal({
           options: {
             data: {
               full_name: name.trim(),
-              role: role,
+              role,
             },
           },
         });
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
         if (data.session) {
           setMessage("Profil je uspješno kreiran.");
 
-          if (onAuthSuccess) {
-            onAuthSuccess(data.user);
+          if (onAuthSuccess && data.user) {
+            await onAuthSuccess(data.user);
           }
         } else {
           setMessage(
@@ -56,14 +54,12 @@ export default function AuthModal({
             password,
           });
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
         setMessage("Uspješno ste prijavljeni.");
 
-        if (onAuthSuccess) {
-          onAuthSuccess(data.user);
+        if (onAuthSuccess && data.user) {
+          await onAuthSuccess(data.user);
         }
       }
     } catch (error) {
@@ -80,17 +76,19 @@ export default function AuthModal({
     setMode((current) =>
       current === "login" ? "signup" : "login"
     );
-
     setMessage("");
   }
 
   return (
-    <div className="modal" onClick={onClose}>
+    <div
+      className="modal-backdrop"
+      onClick={onClose}
+    >
       <div
-        className="modal-card"
+        className="v2-modal"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="modal-head">
+        <div className="modal-head-v2">
           <div>
             <h2>
               {mode === "login"
@@ -107,7 +105,7 @@ export default function AuthModal({
 
           <button
             type="button"
-            className="close"
+            className="modal-close"
             onClick={onClose}
             aria-label="Zatvori"
           >
@@ -115,11 +113,15 @@ export default function AuthModal({
           </button>
         </div>
 
-        <form className="form" onSubmit={handleSubmit}>
+        <form
+          className="modal-form"
+          onSubmit={handleSubmit}
+        >
           {mode === "signup" && (
             <>
-              <label>
+              <label className="field">
                 Ime i prezime
+
                 <input
                   type="text"
                   value={name}
@@ -132,8 +134,9 @@ export default function AuthModal({
                 />
               </label>
 
-              <label>
+              <label className="field">
                 Kako želiš koristiti Sredi?
+
                 <select
                   value={role}
                   onChange={(event) =>
@@ -151,16 +154,17 @@ export default function AuthModal({
                 </select>
               </label>
 
-              <div className="notice">
+              <div className="notice-global">
                 {role === "helper"
-                  ? "Kao pomagač možeš se javljati na zadatke, završavati poslove i graditi svoj rating."
+                  ? "Kao pomagač možeš pronaći zadatke, slati ponude i graditi svoj rating."
                   : "Objavi zadatak i pronađi odgovarajućeg pomagača."}
               </div>
             </>
           )}
 
-          <label>
+          <label className="field">
             Email
+
             <input
               type="email"
               value={email}
@@ -173,8 +177,9 @@ export default function AuthModal({
             />
           </label>
 
-          <label>
+          <label className="field">
             Lozinka
+
             <input
               type="password"
               value={password}
@@ -194,7 +199,7 @@ export default function AuthModal({
 
           <button
             type="submit"
-            className="btn btn-dark btn-wide"
+            className="btn btn-dark"
             disabled={loading}
           >
             {loading
@@ -205,14 +210,14 @@ export default function AuthModal({
           </button>
 
           {message && (
-            <div className="notice">
+            <div className="notice-global">
               {message}
             </div>
           )}
 
           <button
             type="button"
-            className="btn btn-light btn-wide"
+            className="btn"
             onClick={switchMode}
             disabled={loading}
           >
