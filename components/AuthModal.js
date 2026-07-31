@@ -3,9 +3,13 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 
-export default function AuthModal({ onClose }) {
+export default function AuthModal({
+  onClose,
+  onAuthSuccess,
+}) {
   const [mode, setMode] = useState("login");
   const [name, setName] = useState("");
+  const [role, setRole] = useState("customer");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,6 +29,7 @@ export default function AuthModal({ onClose }) {
           options: {
             data: {
               full_name: name.trim(),
+              role: role,
             },
           },
         });
@@ -35,22 +40,31 @@ export default function AuthModal({ onClose }) {
 
         if (data.session) {
           setMessage("Profil je uspješno kreiran.");
+
+          if (onAuthSuccess) {
+            onAuthSuccess(data.user);
+          }
         } else {
           setMessage(
             "Profil je kreiran. Provjeri email i potvrdi registraciju."
           );
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+        const { data, error } =
+          await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
 
         if (error) {
           throw error;
         }
 
         setMessage("Uspješno ste prijavljeni.");
+
+        if (onAuthSuccess) {
+          onAuthSuccess(data.user);
+        }
       }
     } catch (error) {
       setMessage(
@@ -103,19 +117,46 @@ export default function AuthModal({ onClose }) {
 
         <form className="form" onSubmit={handleSubmit}>
           {mode === "signup" && (
-            <label>
-              Ime i prezime
-              <input
-                type="text"
-                value={name}
-                onChange={(event) =>
-                  setName(event.target.value)
-                }
-                placeholder="Ime i prezime"
-                autoComplete="name"
-                required
-              />
-            </label>
+            <>
+              <label>
+                Ime i prezime
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(event) =>
+                    setName(event.target.value)
+                  }
+                  placeholder="Ime i prezime"
+                  autoComplete="name"
+                  required
+                />
+              </label>
+
+              <label>
+                Kako želiš koristiti Sredi?
+                <select
+                  value={role}
+                  onChange={(event) =>
+                    setRole(event.target.value)
+                  }
+                  required
+                >
+                  <option value="customer">
+                    Tražim pomoć
+                  </option>
+
+                  <option value="helper">
+                    Želim biti pomagač
+                  </option>
+                </select>
+              </label>
+
+              <div className="notice">
+                {role === "helper"
+                  ? "Kao pomagač možeš se javljati na zadatke, završavati poslove i graditi svoj rating."
+                  : "Objavi zadatak i pronađi odgovarajućeg pomagača."}
+              </div>
+            </>
           )}
 
           <label>
