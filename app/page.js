@@ -404,7 +404,7 @@ const helperLevel = useMemo(
     city: "",
     phone: "",
     bio: "",
-    avatar_url,
+    avatar_url: "",
     is_helper: false,
     can_post_jobs: true,
   });
