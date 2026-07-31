@@ -3203,6 +3203,7 @@ try {
                   </button>
                 </div>
               </form>
+)}
 {profile?.is_helper && (
   <div className="helper-rating-card">
   <div className="helper-level-row">
