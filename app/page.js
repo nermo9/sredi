@@ -1,5 +1,5 @@
 "use client";
-
+import "./v3.css";
 import { useEffect, useMemo, useState } from "react";
 import AuthModal from "../components/AuthModal";
 import Sidebar from "../components/Sidebar";
@@ -13,14 +13,14 @@ import {
 } from "./translations";
 
 const categories = [
-  { icon: "🧹", name: "Čišćenje" },
-  { icon: "📦", name: "Selidbe" },
-  { icon: "🌿", name: "Kuća & bašta" },
-  { icon: "🔧", name: "Montaža" },
-  { icon: "🚗", name: "Prevoz" },
-  { icon: "🛠️", name: "Praktična pomoć" },
-  { icon: "🏠", name: "Nekretnine" },
-  { icon: "✨", name: "Ostalo" },
+  { icon: "cleaning", name: "Čišćenje" },
+  { icon: "moving", name: "Selidbe" },
+  { icon: "garden", name: "Kuća & bašta" },
+  { icon: "tools", name: "Montaža" },
+  { icon: "car", name: "Prevoz" },
+  { icon: "hand", name: "Praktična pomoć" },
+  { icon: "home", name: "Nekretnine" },
+  { icon: "grid", name: "Ostalo" },
 ];
 
 const demoJobs = [
@@ -118,7 +118,228 @@ function normalizeStatus(status) {
 
   return "open";
 }
+function Icon({
+  name,
+  size = 20,
+  className = "",
+  filled = false,
+}) {
+  const paths = {
+    cleaning: (
+      <>
+        <path d="M7 3h10" />
+        <path d="M9 3v5" />
+        <path d="M15 3v5" />
+        <path d="M7 8h10l1 12H6L7 8Z" />
+        <path d="M9 14h6" />
+      </>
+    ),
 
+    moving: (
+      <>
+        <path d="M4 7 12 3l8 4-8 4-8-4Z" />
+        <path d="M4 7v10l8 4 8-4V7" />
+        <path d="M12 11v10" />
+      </>
+    ),
+
+    garden: (
+      <>
+        <path d="M12 21V9" />
+        <path d="M12 13c-4 0-7-2.5-7-6 4 0 7 2 7 6Z" />
+        <path d="M12 10c3.8 0 6-2.2 6-5-3.8 0-6 2.2-6 5Z" />
+      </>
+    ),
+
+    tools: (
+      <>
+        <path d="m14 6 4-4 4 4-4 4" />
+        <path d="m16 8-9.5 9.5a2.12 2.12 0 1 1-3-3L13 5" />
+      </>
+    ),
+
+    car: (
+      <>
+        <path d="M5 17h14" />
+        <path d="M6 17 4 13l2-6h12l2 6-2 4" />
+        <circle cx="7" cy="17" r="2" />
+        <circle cx="17" cy="17" r="2" />
+        <path d="M5 13h14" />
+      </>
+    ),
+
+    hand: (
+      <>
+        <path d="M8 11V6a2 2 0 0 1 4 0v5" />
+        <path d="M12 10V5a2 2 0 0 1 4 0v7" />
+        <path d="M16 10V7a2 2 0 0 1 4 0v7c0 5-3 7-7 7h-1c-3 0-5-2-7-5l-2-3a2 2 0 0 1 3-2l2 2" />
+      </>
+    ),
+
+    home: (
+      <>
+        <path d="m3 11 9-8 9 8" />
+        <path d="M5 10v11h14V10" />
+        <path d="M9 21v-6h6v6" />
+      </>
+    ),
+
+    grid: (
+      <>
+        <rect x="4" y="4" width="6" height="6" rx="1" />
+        <rect x="14" y="4" width="6" height="6" rx="1" />
+        <rect x="4" y="14" width="6" height="6" rx="1" />
+        <rect x="14" y="14" width="6" height="6" rx="1" />
+      </>
+    ),
+
+    location: (
+      <>
+        <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
+        <circle cx="12" cy="10" r="2.5" />
+      </>
+    ),
+
+    user: (
+      <>
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21c.8-4 3.5-6 8-6s7.2 2 8 6" />
+      </>
+    ),
+
+    clipboard: (
+      <>
+        <rect x="5" y="4" width="14" height="17" rx="2" />
+        <path d="M9 4V2h6v2" />
+        <path d="M9 10h6" />
+        <path d="M9 14h6" />
+      </>
+    ),
+
+    briefcase: (
+      <>
+        <rect x="3" y="7" width="18" height="13" rx="2" />
+        <path d="M8 7V4h8v3" />
+        <path d="M3 12h18" />
+      </>
+    ),
+
+    logout: (
+      <>
+        <path d="M10 5H5v14h5" />
+        <path d="M14 8l4 4-4 4" />
+        <path d="M18 12H9" />
+      </>
+    ),
+
+    upload: (
+      <>
+        <path d="M12 16V4" />
+        <path d="m7 9 5-5 5 5" />
+        <path d="M5 20h14" />
+      </>
+    ),
+
+    image: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <circle cx="9" cy="9" r="2" />
+        <path d="m21 15-5-5L5 20" />
+      </>
+    ),
+
+    close: (
+      <>
+        <path d="M6 6l12 12" />
+        <path d="M18 6 6 18" />
+      </>
+    ),
+
+    arrow: (
+      <>
+        <path d="M5 12h14" />
+        <path d="m14 7 5 5-5 5" />
+      </>
+    ),
+
+    star: (
+      <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" />
+    ),
+
+    check: <path d="m5 12 4 4L19 6" />,
+
+    search: (
+      <>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-4-4" />
+      </>
+    ),
+  award: (
+  <>
+    <circle cx="12" cy="8" r="5" />
+    <path d="M8.5 12 7 22l5-3 5 3-1.5-10" />
+    <path d="m10 8 1.3 1.3L14 6.5" />
+  </>
+),
+  };
+
+  return (
+    <span
+      className={`ui-icon ${className}`}
+      style={{ width: size, height: size }}
+    >
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill={name === "star" && filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {paths[name] || paths.grid}
+      </svg>
+    </span>
+  );
+}
+function getHelperLevel(completedJobs) {
+  const count = Number(completedJobs || 0);
+
+  if (count >= 50) {
+    return {
+      name: "Diamond",
+      className: "level-diamond",
+    };
+  }
+
+  if (count >= 20) {
+    return {
+      name: "Gold",
+      className: "level-gold",
+    };
+  }
+
+  if (count >= 10) {
+    return {
+      name: "Silver",
+      className: "level-silver",
+    };
+  }
+
+  if (count >= 5) {
+    return {
+      name: "Bronze",
+      className: "level-bronze",
+    };
+  }
+
+  return {
+    name: "New",
+    className: "level-new",
+  };
+}
 export default function Home() {
   const [language, setLanguage] = useState("bs");
 
@@ -137,6 +358,22 @@ export default function Home() {
   const [applicationsByJob, setApplicationsByJob] = useState({});
   const [myReviews, setMyReviews] = useState([]);
 
+  const [jobImages, setJobImages] = useState([]);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [helperReviews, setHelperReviews] = useState([]);
+  const completedHelperJobs = useMemo(() => {
+  return myApplications.filter((application) => {
+    const status = String(application.status || "").toLowerCase();
+
+    return status === "completed" || status === "done";
+  }).length;
+}, [myApplications]);
+
+const helperLevel = useMemo(
+  () => getHelperLevel(completedHelperJobs),
+  [completedHelperJobs]
+);
+  
   const [selectedJob, setSelectedJob] = useState(null);
 
   const [search, setSearch] = useState("");
@@ -167,6 +404,7 @@ export default function Home() {
     city: "",
     phone: "",
     bio: "",
+    avatar_url,
     is_helper: false,
     can_post_jobs: true,
   });
@@ -233,6 +471,7 @@ export default function Home() {
 
     loadMyApplications();
     loadMyReviews();
+    loadHelperReviews(user);
 
     if (jobs.length) {
       loadApplicationsForOwnedJobs();
@@ -298,6 +537,7 @@ export default function Home() {
       city: data?.city || "",
       phone: data?.phone || "",
       bio: data?.bio || "",
+      avatar_url: data?.avatar_url || "",
       is_helper: Boolean(data?.is_helper),
       can_post_jobs:
         data?.can_post_jobs === null ||
@@ -342,23 +582,6 @@ export default function Home() {
   async function loadMyReviews() {
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from("reviews")
-      .select("*")
-      .eq("reviewer_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Reviews error:", error);
-      return;
-    }
-
-    setMyReviews(data || []);
-  }
-
-  async function loadApplicationsForOwnedJobs() {
-    if (!user) return;
-
     const ownedIds = jobs
       .filter((job) => job.owner_id === user.id)
       .map((job) => job.id);
@@ -391,6 +614,24 @@ export default function Home() {
 
     setApplicationsByJob(grouped);
   }
+  async function loadHelperReviews(currentUser = user) {
+  if (!currentUser) return;
+
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("*")
+    .eq("helper_id", currentUser.id)
+    .order("created_at", {
+      ascending: false,
+    });
+
+  if (error) {
+    console.error("Helper reviews error:", error);
+    return;
+  }
+
+  setHelperReviews(data || []);
+}
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -448,6 +689,26 @@ export default function Home() {
     setActionLoading(true);
     setNotice("");
 
+    let uploadedImages = [];
+
+try {
+  if (jobImages.length > 0) {
+    uploadedImages = await uploadJobImages(jobImages);
+  }
+} catch (error) {
+  console.error("Job image upload error:", error);
+
+  setActionLoading(false);
+
+  setNotice(
+    language === "en"
+      ? "The task images could not be uploaded."
+      : "Slike zadatka nisu mogle biti učitane."
+  );
+
+  return;
+}
+
     const payload = {
       owner_id: user.id,
       title: jobForm.title.trim(),
@@ -459,6 +720,7 @@ export default function Home() {
           ? null
           : Number(jobForm.price),
       status: "open",
+      image_urls: uploadedImages,
     };
 
     const { data, error } = await supabase
@@ -483,6 +745,8 @@ export default function Home() {
       city: "",
       price: "",
     });
+
+    setJobImages([]);
 
     setPostOpen(false);
     setView("myTasks");
@@ -721,6 +985,134 @@ export default function Home() {
     );
   }
 
+  async function uploadAvatar(file) {
+  if (!user || !file) return;
+
+  if (!file.type.startsWith("image/")) {
+    setNotice(
+      language === "en"
+        ? "Please select an image."
+        : "Odaberi sliku."
+    );
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    setNotice(
+      language === "en"
+        ? "The image must be under 5 MB."
+        : "Slika mora biti manja od 5 MB."
+    );
+    return;
+  }
+
+  setAvatarUploading(true);
+  setNotice("");
+
+  try {
+    const extension =
+      file.name.split(".").pop()?.toLowerCase() || "jpg";
+
+    const path =
+      `${user.id}/avatar-${Date.now()}.${extension}`;
+
+    const { error: uploadError } =
+      await supabase.storage
+        .from("avatars")
+        .upload(path, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(path);
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({
+        avatar_url: publicUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    applyProfile(data);
+
+    setNotice(
+      language === "en"
+        ? "Profile photo updated."
+        : "Profilna slika je sačuvana."
+    );
+  } catch (error) {
+    console.error("Avatar upload error:", error);
+
+    setNotice(
+      error?.message ||
+        (language === "en"
+          ? "Could not upload the photo."
+          : "Slika nije mogla biti učitana.")
+    );
+  } finally {
+    setAvatarUploading(false);
+  }
+}
+
+  async function uploadJobImages(files) {
+  if (!user || !files?.length) return [];
+
+  const selected = Array.from(files).slice(0, 5);
+  const urls = [];
+
+  for (const file of selected) {
+    if (!file.type.startsWith("image/")) {
+      continue;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      continue;
+    }
+
+    const extension =
+      file.name.split(".").pop()?.toLowerCase() || "jpg";
+
+    const path =
+      `${user.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+
+    const { error } = await supabase.storage
+      .from("job-images")
+      .upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage
+      .from("job-images")
+      .getPublicUrl(path);
+
+    urls.push(publicUrl);
+  }
+
+  return urls;
+}
+  
   async function saveProfile(event) {
     event.preventDefault();
 
@@ -1890,8 +2282,15 @@ export default function Home() {
                 }
               >
                 <span className="avatar-circle">
-                  {getInitials(profile?.full_name)}
-                </span>
+  {profile?.avatar_url ? (
+    <img
+      src={profile.avatar_url}
+      alt={profile?.full_name || "Profile"}
+    />
+  ) : (
+    getInitials(profile?.full_name)
+  )}
+</span>
               </button>
             )}
 
@@ -1918,20 +2317,20 @@ export default function Home() {
                 </div>
 
                 <button onClick={() => navigate("profile")}>
-                  👤 {t.profile}
-                </button>
+  <Icon name="user" size={18} /> {t.profile}
+</button>
 
-                <button onClick={() => navigate("myTasks")}>
-                  📋 {t.myTasks}
-                </button>
+<button onClick={() => navigate("myTasks")}>
+  <Icon name="clipboard" size={18} /> {t.myTasks}
+</button>
 
-                <button onClick={() => navigate("myJobs")}>
-                  💼 {t.myJobs}
-                </button>
+<button onClick={() => navigate("myJobs")}>
+  <Icon name="briefcase" size={18} /> {t.myJobs}
+</button>
 
-                <button onClick={handleLogout}>
-                  ↪ {t.logout}
-                </button>
+<button onClick={handleLogout}>
+  <Icon name="logout" size={18} /> {t.logout}
+</button>
               </div>
             )}
           </div>
@@ -2053,8 +2452,11 @@ export default function Home() {
                     }}
                   >
                     <span className="category-icon">
-                      {category.icon}
-                    </span>
+  <Icon
+    name={category.icon}
+    size={23}
+  />
+</span>
 
                     <span className="category-name">
                       {categoryLabel(category.name)}
@@ -2801,6 +3203,115 @@ export default function Home() {
                   </button>
                 </div>
               </form>
+{profile?.is_helper && (
+  <div className="helper-rating-card">
+  <div className="helper-level-row">
+  <div className={`helper-level-badge ${helperLevel.className}`}>
+    <Icon name="award" size={18} />
+    <span>{helperLevel.name}</span>
+  </div>
+
+  <span className="helper-completed-count">
+    {language === "en"
+      ? `${completedHelperJobs} completed ${
+          completedHelperJobs === 1 ? "task" : "tasks"
+        }`
+      : `${completedHelperJobs} ${
+          completedHelperJobs === 1
+            ? "završen zadatak"
+            : "završenih zadataka"
+        }`}
+  </span>
+</div>
+    <div className="helper-rating-head">
+      <div>
+        <span className="helper-rating-label">
+          {language === "en"
+            ? "Helper rating"
+            : "Ocjena pomagača"}
+        </span>
+
+        <strong className="helper-rating-score">
+          {helperReviews.length > 0
+            ? (
+                helperReviews.reduce(
+                  (sum, review) =>
+                    sum + Number(review.rating || 0),
+                  0
+                ) / helperReviews.length
+              ).toFixed(1)
+            : "—"}
+        </strong>
+      </div>
+
+      <div className="helper-rating-stars">
+        {[1, 2, 3, 4, 5].map((star) => {
+          const average =
+            helperReviews.length > 0
+              ? helperReviews.reduce(
+                  (sum, review) =>
+                    sum + Number(review.rating || 0),
+                  0
+                ) / helperReviews.length
+              : 0;
+
+          return (
+            <Icon
+              key={star}
+              name="star"
+              size={20}
+              filled={star <= Math.round(average)}
+            />
+          );
+        })}
+      </div>
+    </div>
+
+    <span className="helper-rating-count">
+      {helperReviews.length === 1
+        ? language === "en"
+          ? "1 review"
+          : "1 ocjena"
+        : language === "en"
+          ? `${helperReviews.length} reviews`
+          : `${helperReviews.length} ocjena`}
+    </span>
+
+    {helperReviews.length > 0 && (
+      <div className="helper-review-list">
+        {helperReviews.slice(0, 3).map((review) => (
+          <div
+            className="helper-review-item"
+            key={review.id}
+          >
+            <div className="helper-review-item-head">
+              <div className="helper-review-stars">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Icon
+                    key={star}
+                    name="star"
+                    size={16}
+                    filled={
+                      star <= Number(review.rating || 0)
+                    }
+                  />
+                ))}
+              </div>
+
+              <span>
+                {Number(review.rating || 0).toFixed(1)}
+              </span>
+            </div>
+
+            {review.comment && (
+              <p>{review.comment}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
             )}
           </div>
         </section>
@@ -2908,6 +3419,85 @@ export default function Home() {
                   required
                 />
               </label>
+
+              <label className="field">
+  {language === "en"
+    ? "Photos"
+    : "Fotografije"}
+
+  <div className="upload-zone">
+    <input
+      type="file"
+      accept="image/jpeg,image/png,image/webp"
+      multiple
+      onChange={(event) => {
+        const files = Array.from(
+          event.target.files || []
+        ).slice(0, 5);
+
+        setJobImages(files);
+      }}
+    />
+
+    <div className="upload-zone-content">
+      <div className="upload-zone-icon">
+        <Icon name="upload" size={32} />
+      </div>
+
+      <strong>
+        {language === "en"
+          ? "Add photos of the task"
+          : "Dodaj fotografije zadatka"}
+      </strong>
+
+      <span>
+        {language === "en"
+          ? "Up to 5 images · JPG, PNG or WebP"
+          : "Do 5 slika · JPG, PNG ili WebP"}
+      </span>
+    </div>
+  </div>
+</label>
+
+{jobImages.length > 0 && (
+  <div className="image-preview-grid">
+    {jobImages.map((file, index) => (
+      <div
+        className="image-preview"
+        key={`${file.name}-${index}`}
+      >
+        <img
+          src={URL.createObjectURL(file)}
+          alt={
+            language === "en"
+              ? `Task preview ${index + 1}`
+              : `Pregled slike ${index + 1}`
+          }
+        />
+
+        <button
+          type="button"
+          className="image-preview-remove"
+          aria-label={
+            language === "en"
+              ? "Remove image"
+              : "Ukloni sliku"
+          }
+          onClick={() => {
+            setJobImages((current) =>
+              current.filter(
+                (_, currentIndex) =>
+                  currentIndex !== index
+              )
+            );
+          }}
+        >
+          <Icon name="close" size={16} />
+        </button>
+      </div>
+    ))}
+  </div>
+)}
 
               <div className="two-fields">
                 <label className="field">
