@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AuthModal from "../components/AuthModal";
+import { supabase } from "../lib/supabase";
 
 const categories = [
   { icon: "🧹", name: "Čišćenje" },
@@ -22,8 +23,7 @@ const demoJobs = [
     city: "Sarajevo",
     category: "Čišćenje",
     price: 80,
-    description:
-      "Potrebna pomoć oko generalnog čišćenja stana.",
+    description: "Potrebna pomoć oko generalnog čišćenja stana.",
     owner: "Amir K.",
   },
   {
@@ -33,8 +33,7 @@ const demoJobs = [
     city: "Banja Luka",
     category: "Selidbe",
     price: 120,
-    description:
-      "Tražim pomoć za nošenje kutija i namještaja.",
+    description: "Tražim pomoć za nošenje kutija i namještaja.",
     owner: "Marko P.",
   },
   {
@@ -44,8 +43,7 @@ const demoJobs = [
     city: "Mostar",
     category: "Kuća & bašta",
     price: 60,
-    description:
-      "Potrebno pokositi travu i srediti manje dvorište.",
+    description: "Potrebno pokositi travu i srediti manje dvorište.",
     owner: "Lejla H.",
   },
   {
@@ -55,8 +53,7 @@ const demoJobs = [
     city: "Tuzla",
     category: "Montaža",
     price: 90,
-    description:
-      "Potrebna montaža ormara i jedne komode.",
+    description: "Potrebna montaža ormara i jedne komode.",
     owner: "Haris S.",
   },
   {
@@ -66,8 +63,7 @@ const demoJobs = [
     city: "Zenica",
     category: "Prevoz",
     price: 45,
-    description:
-      "Preuzeti paket u centru i dostaviti ga na adresu.",
+    description: "Preuzeti paket u centru i dostaviti ga na adresu.",
     owner: "Emina B.",
   },
   {
@@ -77,8 +73,7 @@ const demoJobs = [
     city: "Bihać",
     category: "Praktična pomoć",
     price: 100,
-    description:
-      "Potrebna pomoć oko nekoliko manjih poslova u stanu.",
+    description: "Potrebna pomoć oko nekoliko manjih poslova u stanu.",
     owner: "Adnan M.",
   },
 ];
@@ -119,19 +114,57 @@ const demoHelpers = [
   },
 ];
 
+function getUserName(user) {
+  if (!user) return "";
+
+  const metadataName = user.user_metadata?.full_name?.trim();
+
+  if (metadataName) return metadataName;
+
+  return user.email?.split("@")[0] || "Korisnik";
+}
+
+function getUserRole(user) {
+  return user?.user_metadata?.role === "helper"
+    ? "helper"
+    : "customer";
+}
+
+function getInitials(name) {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!parts.length) return "S";
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
 export default function Home() {
   const [mode, setMode] = useState("help");
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("Cijela BiH");
   const [category, setCategory] = useState("Sve");
 
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
   const [showAuth, setShowAuth] = useState(false);
   const [showJobForm, setShowJobForm] = useState(false);
+  const [showMyProfile, setShowMyProfile] = useState(false);
+  const [showMyJobs, setShowMyJobs] = useState(false);
 
   const [selectedJob, setSelectedJob] = useState(null);
   const [selectedHelper, setSelectedHelper] = useState(null);
 
   const [notice, setNotice] = useState("");
+
+  const menuRef = useRef(null);
 
   const [jobForm, setJobForm] = useState({
     title: "",
@@ -140,6 +173,60 @@ export default function Home() {
     budget: "",
     description: "",
   });
+
+  const userName = getUserName(user);
+  const userRole = getUserRole(user);
+  const isHelper = userRole === "helper";
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSession() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (mounted) {
+        setUser(session?.user ?? null);
+        setAuthLoading(false);
+      }
+    }
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+
+      if (session?.user) {
+        setShowAuth(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    function closeMenu(event) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setShowUserMenu(false);
+      }
+    }
+
+    document.addEventListener("mousedown", closeMenu);
+
+    return () => {
+      document.removeEventListener("mousedown", closeMenu);
+    };
+  }, []);
 
   const filteredJobs = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -168,9 +255,22 @@ export default function Home() {
       ?.scrollIntoView({ behavior: "smooth" });
   }
 
-  function openAuth() {
-    setNotice("");
+  function openAuth(message = "") {
+    setNotice(message);
     setShowAuth(true);
+    setShowUserMenu(false);
+  }
+
+  function openJobForm() {
+    if (!user) {
+      openAuth(
+        "Prijavi se ili napravi profil kako bi objavio zadatak."
+      );
+      return;
+    }
+
+    setShowJobForm(true);
+    setShowUserMenu(false);
   }
 
   function handleJobFormChange(event) {
@@ -185,19 +285,73 @@ export default function Home() {
   function handleJobContinue(event) {
     event.preventDefault();
 
+    if (!user) {
+      setShowJobForm(false);
+      openAuth(
+        "Prijavi se ili napravi profil kako bi objavio zadatak."
+      );
+      return;
+    }
+
     setShowJobForm(false);
     setNotice(
-      "Prijavi se ili napravi profil kako bi objavio zadatak."
+      "Forma radi. U sljedećem koraku povezujemo stvarno objavljivanje zadataka sa bazom."
     );
-    setShowAuth(true);
+
+    setJobForm({
+      title: "",
+      category: "",
+      city: "",
+      budget: "",
+      description: "",
+    });
   }
 
   function handleApply(job) {
     setSelectedJob(null);
+
+    if (!user) {
+      openAuth(
+        `Prijavi se kako bi se javio za zadatak "${job.title}".`
+      );
+      return;
+    }
+
+    if (!isHelper) {
+      setNotice(
+        "Za prijavu na zadatke potreban je profil pomagača."
+      );
+      return;
+    }
+
     setNotice(
-      `Prijavi se kako bi se javio za zadatak "${job.title}".`
+      `Prijava za "${job.title}" će biti povezana sa bazom u sljedećem koraku.`
     );
-    setShowAuth(true);
+  }
+
+  async function handleLogout() {
+    setShowUserMenu(false);
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      setNotice(error.message);
+      return;
+    }
+
+    setUser(null);
+    setShowMyProfile(false);
+    setShowMyJobs(false);
+    setNotice("Uspješno ste se odjavili.");
+  }
+
+  function handleAuthSuccess(authUser) {
+    if (authUser) {
+      setUser(authUser);
+    }
+
+    setShowAuth(false);
+    setNotice("");
   }
 
   return (
@@ -241,6 +395,11 @@ export default function Home() {
           cursor: pointer;
         }
 
+        button:disabled {
+          cursor: not-allowed;
+          opacity: 0.65;
+        }
+
         .site {
           min-height: 100vh;
           overflow-x: hidden;
@@ -252,7 +411,10 @@ export default function Home() {
         }
 
         .header {
+          position: relative;
+          z-index: 100;
           border-bottom: 1px solid var(--line);
+          background: var(--cream);
         }
 
         .nav {
@@ -316,6 +478,116 @@ export default function Home() {
 
         .btn-wide {
           width: 100%;
+        }
+
+        .account-wrap {
+          position: relative;
+        }
+
+        .account-button {
+          min-width: 150px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 11px;
+          border: 1px solid var(--line);
+          border-radius: 12px;
+          background: white;
+          color: var(--green);
+          padding: 8px 11px;
+        }
+
+        .account-avatar {
+          width: 34px;
+          height: 34px;
+          flex: 0 0 34px;
+          display: grid;
+          place-items: center;
+          border-radius: 50%;
+          background: var(--green);
+          color: white;
+          font-size: 11px;
+          font-weight: 900;
+        }
+
+        .account-copy {
+          min-width: 0;
+          flex: 1;
+          text-align: left;
+        }
+
+        .account-name {
+          display: block;
+          max-width: 145px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 13px;
+          font-weight: 900;
+        }
+
+        .account-role {
+          display: block;
+          margin-top: 2px;
+          color: var(--muted);
+          font-size: 10px;
+          font-weight: 700;
+        }
+
+        .account-arrow {
+          font-size: 11px;
+        }
+
+        .account-menu {
+          position: absolute;
+          top: calc(100% + 9px);
+          right: 0;
+          width: 225px;
+          overflow: hidden;
+          border: 1px solid var(--line);
+          border-radius: 14px;
+          background: white;
+          box-shadow: 0 18px 45px rgba(23, 35, 30, 0.14);
+        }
+
+        .account-menu-head {
+          padding: 15px;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .account-menu-head strong {
+          display: block;
+          margin-bottom: 4px;
+          font-size: 14px;
+        }
+
+        .account-menu-head span {
+          color: var(--muted);
+          font-size: 11px;
+        }
+
+        .account-menu button {
+          width: 100%;
+          border: 0;
+          border-bottom: 1px solid #eef0ed;
+          background: white;
+          color: var(--green);
+          padding: 13px 15px;
+          text-align: left;
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .account-menu button:hover {
+          background: var(--cream);
+        }
+
+        .account-menu button:last-child {
+          border-bottom: 0;
+        }
+
+        .logout-button {
+          color: #8b3434 !important;
         }
 
         .hero {
@@ -731,6 +1003,10 @@ export default function Home() {
           box-shadow: 0 30px 80px rgba(0, 0, 0, 0.25);
         }
 
+        .modal-card-large {
+          width: min(650px, 100%);
+        }
+
         .modal-head {
           display: flex;
           justify-content: space-between;
@@ -798,6 +1074,15 @@ export default function Home() {
           line-height: 1.5;
         }
 
+        .floating-notice {
+          position: fixed;
+          z-index: 1200;
+          left: 50%;
+          bottom: 24px;
+          transform: translateX(-50%);
+          width: min(500px, calc(100% - 30px));
+        }
+
         .job-modal-price {
           margin: 18px 0;
           font-size: 27px;
@@ -820,6 +1105,23 @@ export default function Home() {
           background: #dce9dc;
           font-size: 20px;
           font-weight: 900;
+        }
+
+        .profile-role {
+          display: inline-flex;
+          margin-top: 6px;
+          padding: 6px 9px;
+          border-radius: 999px;
+          background: var(--soft);
+          color: var(--green);
+          font-size: 11px;
+          font-weight: 900;
+        }
+
+        .profile-email {
+          margin: 6px 0 0;
+          color: var(--muted);
+          font-size: 13px;
         }
 
         .profile-rating {
@@ -853,6 +1155,27 @@ export default function Home() {
           line-height: 1.55;
         }
 
+        .dashboard-box {
+          padding: 20px;
+          border: 1px solid var(--line);
+          border-radius: 15px;
+          background: white;
+        }
+
+        .dashboard-box + .dashboard-box {
+          margin-top: 12px;
+        }
+
+        .dashboard-box h3 {
+          margin: 0 0 8px;
+        }
+
+        .dashboard-box p {
+          margin: 0;
+          color: var(--muted);
+          line-height: 1.6;
+        }
+
         @media (max-width: 850px) {
           .container {
             width: calc(100% - 26px);
@@ -870,9 +1193,23 @@ export default function Home() {
             gap: 6px;
           }
 
-          .nav-actions .btn {
+          .nav-actions > .btn {
             padding: 11px 12px;
             font-size: 13px;
+          }
+
+          .account-button {
+            min-width: 0;
+            padding: 7px;
+          }
+
+          .account-copy,
+          .account-arrow {
+            display: none;
+          }
+
+          .account-menu {
+            right: 0;
           }
 
           .hero {
@@ -970,6 +1307,10 @@ export default function Home() {
           .job-footer .btn {
             width: 100%;
           }
+
+          .profile-rating {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
 
@@ -1002,16 +1343,87 @@ export default function Home() {
                 Kako radi?
               </button>
 
-              <button
-                className="btn btn-light"
-                onClick={openAuth}
-              >
-                Prijavi se
-              </button>
+              {!authLoading && !user && (
+                <button
+                  className="btn btn-light"
+                  onClick={() => openAuth()}
+                >
+                  Prijavi se
+                </button>
+              )}
+
+              {!authLoading && user && (
+                <div className="account-wrap" ref={menuRef}>
+                  <button
+                    className="account-button"
+                    onClick={() =>
+                      setShowUserMenu((current) => !current)
+                    }
+                  >
+                    <span className="account-avatar">
+                      {getInitials(userName)}
+                    </span>
+
+                    <span className="account-copy">
+                      <span className="account-name">
+                        {userName}
+                      </span>
+
+                      <span className="account-role">
+                        {isHelper ? "Pomagač" : "Tražim pomoć"}
+                      </span>
+                    </span>
+
+                    <span className="account-arrow">
+                      ▾
+                    </span>
+                  </button>
+
+                  {showUserMenu && (
+                    <div className="account-menu">
+                      <div className="account-menu-head">
+                        <strong>{userName}</strong>
+                        <span>
+                          {isHelper
+                            ? "Pomagač"
+                            : "Tražim pomoć"}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setShowMyProfile(true);
+                          setShowUserMenu(false);
+                        }}
+                      >
+                        👤 Moj profil
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowMyJobs(true);
+                          setShowUserMenu(false);
+                        }}
+                      >
+                        {isHelper
+                          ? "🧰 Moji poslovi"
+                          : "📋 Moji zadaci"}
+                      </button>
+
+                      <button
+                        className="logout-button"
+                        onClick={handleLogout}
+                      >
+                        ↪ Odjavi se
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <button
                 className="btn btn-dark"
-                onClick={() => setShowJobForm(true)}
+                onClick={openJobForm}
               >
                 Objavi zadatak
               </button>
@@ -1068,9 +1480,7 @@ export default function Home() {
             <input
               type="search"
               value={query}
-              onChange={(event) =>
-                setQuery(event.target.value)
-              }
+              onChange={(event) => setQuery(event.target.value)}
               placeholder={
                 mode === "earn"
                   ? "Pretraži dostupne poslove..."
@@ -1080,9 +1490,7 @@ export default function Home() {
 
             <select
               value={city}
-              onChange={(event) =>
-                setCity(event.target.value)
-              }
+              onChange={(event) => setCity(event.target.value)}
             >
               <option>Cijela BiH</option>
               <option>Sarajevo</option>
@@ -1106,8 +1514,7 @@ export default function Home() {
             <div>
               <h2>Šta trebaš srediti?</h2>
               <p>
-                Odaberi kategoriju i pronađi odgovarajuću
-                pomoć.
+                Odaberi kategoriju i pronađi odgovarajuću pomoć.
               </p>
             </div>
 
@@ -1156,14 +1563,12 @@ export default function Home() {
           <div className="section-head">
             <div>
               <h2>Aktuelni poslovi</h2>
-              <p>
-                {filteredJobs.length} dostupnih zadataka.
-              </p>
+              <p>{filteredJobs.length} dostupnih zadataka.</p>
             </div>
 
             <button
               className="btn btn-dark"
-              onClick={() => setShowJobForm(true)}
+              onClick={openJobForm}
             >
               + Objavi zadatak
             </button>
@@ -1171,13 +1576,8 @@ export default function Home() {
 
           <div className="job-grid">
             {filteredJobs.map((job) => (
-              <article
-                className="job-card"
-                key={job.id}
-              >
-                <div className="job-icon">
-                  {job.icon}
-                </div>
+              <article className="job-card" key={job.id}>
+                <div className="job-icon">{job.icon}</div>
 
                 <h3>{job.title}</h3>
 
@@ -1194,15 +1594,11 @@ export default function Home() {
                 </div>
 
                 <div className="job-footer">
-                  <div className="price">
-                    {job.price} KM
-                  </div>
+                  <div className="price">{job.price} KM</div>
 
                   <button
                     className="btn btn-dark"
-                    onClick={() =>
-                      setSelectedJob(job)
-                    }
+                    onClick={() => setSelectedJob(job)}
                   >
                     Zainteresovan sam
                   </button>
@@ -1212,8 +1608,7 @@ export default function Home() {
 
             {filteredJobs.length === 0 && (
               <div className="empty">
-                Nema zadataka koji odgovaraju tvojoj
-                pretrazi.
+                Nema zadataka koji odgovaraju tvojoj pretrazi.
               </div>
             )}
           </div>
@@ -1228,20 +1623,16 @@ export default function Home() {
           <div className="section-head">
             <div>
               <h2>Pouzdani pomagači</h2>
-
               <p>
-                Pogledaj ocjene i iskustvo prije nego
-                odabereš pomagača.
+                Pogledaj ocjene i iskustvo prije nego odabereš
+                pomagača.
               </p>
             </div>
           </div>
 
           <div className="helper-grid">
             {demoHelpers.map((helper) => (
-              <article
-                className="helper-card"
-                key={helper.id}
-              >
+              <article className="helper-card" key={helper.id}>
                 <div className="helper-head">
                   <div className="avatar">
                     {helper.initials}
@@ -1270,13 +1661,8 @@ export default function Home() {
                   </div>
 
                   <div className="stat">
-                    <strong>
-                      {helper.completedJobs}
-                    </strong>
-
-                    <span>
-                      završenih poslova
-                    </span>
+                    <strong>{helper.completedJobs}</strong>
+                    <span>završenih poslova</span>
                   </div>
                 </div>
 
@@ -1286,10 +1672,7 @@ export default function Home() {
 
                 <div className="tags">
                   {helper.skills.map((skill) => (
-                    <span
-                      className="tag"
-                      key={skill}
-                    >
+                    <span className="tag" key={skill}>
                       {skill}
                     </span>
                   ))}
@@ -1297,9 +1680,7 @@ export default function Home() {
 
                 <button
                   className="helper-button"
-                  onClick={() =>
-                    setSelectedHelper(helper)
-                  }
+                  onClick={() => setSelectedHelper(helper)}
                 >
                   Pogledaj profil
                 </button>
@@ -1317,29 +1698,23 @@ export default function Home() {
           <div className="section-head">
             <div>
               <h2>Kako radi Sredi?</h2>
-              <p>
-                Od objave zadatka do završene pomoći.
-              </p>
+              <p>Od objave zadatka do završene pomoći.</p>
             </div>
           </div>
 
           <div className="how-grid">
             <article className="how-card">
               <div className="step-number">1</div>
-
               <h3>Objavi zadatak</h3>
-
               <p>
-                Opiši šta treba uraditi, odaberi grad i
-                napiši koliko želiš platiti.
+                Opiši šta treba uraditi, odaberi grad i napiši
+                koliko želiš platiti.
               </p>
             </article>
 
             <article className="how-card">
               <div className="step-number">2</div>
-
               <h3>Odaberi pomagača</h3>
-
               <p>
                 Pomagači se mogu javiti na zadatak. Pogledaj
                 njihove ocjene i broj završenih poslova prije
@@ -1349,9 +1724,7 @@ export default function Home() {
 
             <article className="how-card">
               <div className="step-number">3</div>
-
               <h3>Završi i ocijeni</h3>
-
               <p>
                 Kada je posao završen, osoba koja je objavila
                 zadatak može ocijeniti izabranog pomagača sa
@@ -1366,23 +1739,30 @@ export default function Home() {
         <div className="container">
           <div className="trust-box">
             <div>
-              <h2>
-                Dobar rad gradi dobru reputaciju.
-              </h2>
+              <h2>Dobar rad gradi dobru reputaciju.</h2>
 
               <p>
-                Rating, broj ocjena i završeni poslovi
-                pripadaju samo pomagačima. Osoba koja
-                objavljuje zadatak nema rating na Sredi.
+                Rating, broj ocjena i završeni poslovi pripadaju
+                samo pomagačima. Osoba koja objavljuje zadatak
+                nema rating na Sredi.
               </p>
             </div>
 
-            <button
-              className="btn btn-dark"
-              onClick={openAuth}
-            >
-              Napravi profil
-            </button>
+            {!user ? (
+              <button
+                className="btn btn-dark"
+                onClick={() => openAuth()}
+              >
+                Napravi profil
+              </button>
+            ) : (
+              <button
+                className="btn btn-dark"
+                onClick={() => setShowMyProfile(true)}
+              >
+                Moj profil
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -1402,31 +1782,22 @@ export default function Home() {
       {showJobForm && (
         <div
           className="modal"
-          onClick={() =>
-            setShowJobForm(false)
-          }
+          onClick={() => setShowJobForm(false)}
         >
           <div
             className="modal-card"
-            onClick={(event) =>
-              event.stopPropagation()
-            }
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
               <div>
                 <h2>Objavi zadatak</h2>
-
-                <p>
-                  Reci pomagačima šta trebaš.
-                </p>
+                <p>Reci pomagačima šta trebaš.</p>
               </div>
 
               <button
                 type="button"
                 className="close"
-                onClick={() =>
-                  setShowJobForm(false)
-                }
+                onClick={() => setShowJobForm(false)}
               >
                 ×
               </button>
@@ -1441,9 +1812,7 @@ export default function Home() {
                 <input
                   name="title"
                   value={jobForm.title}
-                  onChange={
-                    handleJobFormChange
-                  }
+                  onChange={handleJobFormChange}
                   placeholder="Npr. montaža ormara"
                   required
                 />
@@ -1454,9 +1823,7 @@ export default function Home() {
                 <select
                   name="category"
                   value={jobForm.category}
-                  onChange={
-                    handleJobFormChange
-                  }
+                  onChange={handleJobFormChange}
                   required
                 >
                   <option value="">
@@ -1479,9 +1846,7 @@ export default function Home() {
                 <input
                   name="city"
                   value={jobForm.city}
-                  onChange={
-                    handleJobFormChange
-                  }
+                  onChange={handleJobFormChange}
                   placeholder="Npr. Sarajevo"
                   required
                 />
@@ -1494,9 +1859,7 @@ export default function Home() {
                   type="number"
                   min="1"
                   value={jobForm.budget}
-                  onChange={
-                    handleJobFormChange
-                  }
+                  onChange={handleJobFormChange}
                   placeholder="KM"
                   required
                 />
@@ -1507,9 +1870,7 @@ export default function Home() {
                 <textarea
                   name="description"
                   value={jobForm.description}
-                  onChange={
-                    handleJobFormChange
-                  }
+                  onChange={handleJobFormChange}
                   placeholder="Opiši šta treba uraditi..."
                   required
                 />
@@ -1519,7 +1880,7 @@ export default function Home() {
                 type="submit"
                 className="btn btn-dark btn-wide"
               >
-                Nastavi
+                Objavi zadatak
               </button>
             </form>
           </div>
@@ -1529,21 +1890,15 @@ export default function Home() {
       {selectedJob && (
         <div
           className="modal"
-          onClick={() =>
-            setSelectedJob(null)
-          }
+          onClick={() => setSelectedJob(null)}
         >
           <div
             className="modal-card"
-            onClick={(event) =>
-              event.stopPropagation()
-            }
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
               <div>
-                <h2>
-                  {selectedJob.title}
-                </h2>
+                <h2>{selectedJob.title}</h2>
 
                 <p>
                   📍 {selectedJob.city} ·{" "}
@@ -1554,17 +1909,13 @@ export default function Home() {
               <button
                 type="button"
                 className="close"
-                onClick={() =>
-                  setSelectedJob(null)
-                }
+                onClick={() => setSelectedJob(null)}
               >
                 ×
               </button>
             </div>
 
-            <p>
-              {selectedJob.description}
-            </p>
+            <p>{selectedJob.description}</p>
 
             <div className="job-modal-price">
               {selectedJob.price} KM
@@ -1581,9 +1932,7 @@ export default function Home() {
 
               <button
                 className="btn btn-dark"
-                onClick={() =>
-                  handleApply(selectedJob)
-                }
+                onClick={() => handleApply(selectedJob)}
               >
                 Javi se za zadatak
               </button>
@@ -1595,33 +1944,22 @@ export default function Home() {
       {selectedHelper && (
         <div
           className="modal"
-          onClick={() =>
-            setSelectedHelper(null)
-          }
+          onClick={() => setSelectedHelper(null)}
         >
           <div
             className="modal-card"
-            onClick={(event) =>
-              event.stopPropagation()
-            }
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
               <div>
-                <h2>
-                  {selectedHelper.name}
-                </h2>
-
-                <p>
-                  📍 {selectedHelper.city}
-                </p>
+                <h2>{selectedHelper.name}</h2>
+                <p>📍 {selectedHelper.city}</p>
               </div>
 
               <button
                 type="button"
                 className="close"
-                onClick={() =>
-                  setSelectedHelper(null)
-                }
+                onClick={() => setSelectedHelper(null)}
               >
                 ×
               </button>
@@ -1633,10 +1971,7 @@ export default function Home() {
               </div>
 
               <div>
-                <strong>
-                  {selectedHelper.name}
-                </strong>
-
+                <strong>{selectedHelper.name}</strong>
                 <div className="helper-city">
                   Pomagač na Sredi
                 </div>
@@ -1646,53 +1981,164 @@ export default function Home() {
             <div className="profile-rating">
               <div>
                 <strong className="rating">
-                  ★{" "}
-                  {selectedHelper.rating.toFixed(
-                    1
-                  )}
+                  ★ {selectedHelper.rating.toFixed(1)}
                 </strong>
 
                 <span>
-                  {selectedHelper.reviewCount}{" "}
-                  ocjena
+                  {selectedHelper.reviewCount} ocjena
                 </span>
               </div>
 
               <div>
                 <strong>
-                  {
-                    selectedHelper.completedJobs
-                  }
+                  {selectedHelper.completedJobs}
                 </strong>
 
-                <span>
-                  završenih poslova
-                </span>
+                <span>završenih poslova</span>
               </div>
             </div>
 
-            <p>
-              {selectedHelper.bio}
-            </p>
+            <p>{selectedHelper.bio}</p>
 
             <div className="tags">
-              {selectedHelper.skills.map(
-                (skill) => (
-                  <span
-                    className="tag"
-                    key={skill}
-                  >
-                    {skill}
-                  </span>
-                )
-              )}
+              {selectedHelper.skills.map((skill) => (
+                <span className="tag" key={skill}>
+                  {skill}
+                </span>
+              ))}
             </div>
 
             <div className="rating-explanation">
-              Ocjene se prikazuju samo na
-              profilima pomagača. Nakon završenog
-              zadatka osoba koja je objavila zadatak
-              može ocijeniti izabranog pomagača.
+              Ocjene se prikazuju samo na profilima pomagača.
+              Nakon završenog zadatka osoba koja je objavila
+              zadatak može ocijeniti izabranog pomagača.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMyProfile && user && (
+        <div
+          className="modal"
+          onClick={() => setShowMyProfile(false)}
+        >
+          <div
+            className="modal-card modal-card-large"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-head">
+              <div>
+                <h2>Moj profil</h2>
+                <p>Tvoj Sredi profil</p>
+              </div>
+
+              <button
+                type="button"
+                className="close"
+                onClick={() => setShowMyProfile(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="profile-hero">
+              <div className="profile-avatar">
+                {getInitials(userName)}
+              </div>
+
+              <div>
+                <strong>{userName}</strong>
+
+                <div className="profile-role">
+                  {isHelper ? "Pomagač" : "Tražim pomoć"}
+                </div>
+
+                <p className="profile-email">
+                  {user.email}
+                </p>
+              </div>
+            </div>
+
+            {isHelper ? (
+              <>
+                <div className="profile-rating">
+                  <div>
+                    <strong className="rating">
+                      ★ —
+                    </strong>
+                    <span>0 ocjena</span>
+                  </div>
+
+                  <div>
+                    <strong>0</strong>
+                    <span>završenih poslova</span>
+                  </div>
+                </div>
+
+                <div className="rating-explanation">
+                  Ovo je profil pomagača. Rating će se računati
+                  iz ocjena koje dobiješ nakon završenih
+                  zadataka. Novi profil počinje bez ocjena i sa
+                  0 završenih poslova.
+                </div>
+              </>
+            ) : (
+              <div className="dashboard-box">
+                <h3>Tražim pomoć</h3>
+                <p>
+                  Ovaj profil služi za objavljivanje zadataka i
+                  pronalazak pomagača. Rating se ne prikazuje na
+                  profilima osoba koje traže pomoć.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showMyJobs && user && (
+        <div
+          className="modal"
+          onClick={() => setShowMyJobs(false)}
+        >
+          <div
+            className="modal-card modal-card-large"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-head">
+              <div>
+                <h2>
+                  {isHelper ? "Moji poslovi" : "Moji zadaci"}
+                </h2>
+
+                <p>
+                  {isHelper
+                    ? "Poslovi na koje si se prijavio i koje si završio."
+                    : "Zadaci koje si objavio na Sredi."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="close"
+                onClick={() => setShowMyJobs(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="dashboard-box">
+              <h3>
+                {isHelper
+                  ? "Još nema poslova"
+                  : "Još nema zadataka"}
+              </h3>
+
+              <p>
+                {isHelper
+                  ? "Kada povežemo prijave sa bazom, ovdje ćeš vidjeti svoje aktivne i završene poslove."
+                  : "Kada povežemo objavljivanje sa bazom, ovdje ćeš vidjeti svoje aktivne i završene zadatke."}
+              </p>
             </div>
           </div>
         </div>
@@ -1704,20 +2150,20 @@ export default function Home() {
             setShowAuth(false);
             setNotice("");
           }}
+          onAuthSuccess={handleAuthSuccess}
         />
       )}
 
+      {notice && !showAuth && (
+        <div className="floating-notice">
+          <div className="notice">
+            {notice}
+          </div>
+        </div>
+      )}
+
       {showAuth && notice && (
-        <div
-          style={{
-            position: "fixed",
-            zIndex: 1100,
-            left: "50%",
-            bottom: "24px",
-            transform: "translateX(-50%)",
-            width: "min(460px, calc(100% - 30px))",
-          }}
-        >
+        <div className="floating-notice">
           <div className="notice">
             {notice}
           </div>
