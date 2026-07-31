@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import AuthModal from "../components/AuthModal";
+import Sidebar from "../components/Sidebar";
+import MobileNav from "../components/MobileNav";
+import V2Topbar from "../components/V2Topbar";
+import V2Hero from "../components/V2Hero";
 import { supabase } from "../lib/supabase";
 import {
   translations,
@@ -894,7 +898,7 @@ export default function Home() {
     );
   }
     return (
-    <main className="v2-shell">
+    <div className="v2-app">
       <style jsx global>{`
         * {
           box-sizing: border-box;
@@ -1658,6 +1662,26 @@ export default function Home() {
           font-size: 38px;
         }
 
+        /* V2 integration compatibility */
+        .v2-app > .topbar {
+          display: none;
+        }
+
+        .v2-main .hero {
+          display: none;
+        }
+
+        .v2-main .footer {
+          margin-top: 24px;
+        }
+
+        @media (max-width: 820px) {
+          .v2-main .container {
+            padding-left: 0;
+            padding-right: 0;
+          }
+        }
+
         @media (max-width: 900px) {
           .nav-center {
             display: none;
@@ -1766,6 +1790,37 @@ export default function Home() {
           }
         }
       `}</style>
+
+      <Sidebar
+        activeView={view}
+        onNavigate={navigate}
+        onPostTask={openPostTask}
+        notificationCount={0}
+      />
+
+      <div className="v2-main">
+        <V2Topbar
+          search={search}
+          setSearch={setSearch}
+          language={language === "bs" ? "ba" : "en"}
+          setLanguage={(nextLanguage) =>
+            changeLanguage(nextLanguage === "ba" ? "bs" : "en")
+          }
+          user={user}
+          profile={profile}
+          onLogin={() => setAuthOpen(true)}
+          onProfile={() => navigate("profile")}
+          notificationCount={0}
+        />
+
+        <div className="v2-content">
+          {view === "home" && (
+            <V2Hero
+              language={language === "bs" ? "ba" : "en"}
+              onPostTask={openPostTask}
+              onFindJob={() => navigate("jobs")}
+            />
+          )}
 
       <header className="topbar">
         <nav className="nav">
@@ -3117,7 +3172,16 @@ export default function Home() {
           </div>
         </div>
       )}
-    </main>
+
+        </div>
+
+        <MobileNav
+          activeView={view}
+          onNavigate={navigate}
+          onPostTask={openPostTask}
+        />
+      </div>
+    </div>
   );
 }
 
