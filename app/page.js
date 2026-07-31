@@ -2210,20 +2210,20 @@ try {
       />
 
       <div className="v2-main">
-        <V2Topbar
-          search={search}
-          setSearch={setSearch}
-          language={language === "bs" ? "ba" : "en"}
-          setLanguage={(nextLanguage) =>
-            changeLanguage(nextLanguage === "ba" ? "bs" : "en")
-          }
-          user={user}
-          profile={profile}
-          onLogin={() => setAuthOpen(true)}
-          onProfile={() => navigate("profile")}
-          notificationCount={0}
-        />
-
+     <V2Topbar
+  search={search}
+  setSearch={setSearch}
+  language={language === "bs" ? "ba" : "en"}
+  setLanguage={(nextLanguage) =>
+    changeLanguage(nextLanguage === "ba" ? "bs" : "en")
+  }
+  user={user}
+  profile={profile}
+  onLogin={() => setAuthOpen(true)}
+  onProfile={() => navigate("profile")}
+  onLogout={handleLogout}
+  notificationCount={0}
+/>
         <div className="v2-content">
           {view === "home" && (
             <V2Hero
