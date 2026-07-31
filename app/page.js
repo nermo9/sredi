@@ -101,10 +101,16 @@ function normalizeStatus(status) {
   const value = String(status).toLowerCase();
 
   if (["assigned", "accepted"].includes(value)) return "assigned";
-  if (["in_progress", "progress", "active"].includes(value))
+
+  if (["in_progress", "progress", "active"].includes(value)) {
     return "in_progress";
+  }
+
   if (["completed", "done"].includes(value)) return "completed";
-  if (["cancelled", "canceled"].includes(value)) return "cancelled";
+
+  if (["cancelled", "canceled"].includes(value)) {
+    return "cancelled";
+  }
 
   return "open";
 }
@@ -125,6 +131,7 @@ export default function Home() {
   const [jobs, setJobs] = useState([]);
   const [myApplications, setMyApplications] = useState([]);
   const [applicationsByJob, setApplicationsByJob] = useState({});
+  const [myReviews, setMyReviews] = useState([]);
 
   const [selectedJob, setSelectedJob] = useState(null);
 
@@ -206,6 +213,7 @@ export default function Home() {
         setProfile(null);
         setMyApplications([]);
         setApplicationsByJob({});
+        setMyReviews([]);
         setView("home");
       }
     });
@@ -220,6 +228,7 @@ export default function Home() {
     if (!user) return;
 
     loadMyApplications();
+    loadMyReviews();
 
     if (jobs.length) {
       loadApplicationsForOwnedJobs();
@@ -324,6 +333,23 @@ export default function Home() {
     }
 
     setMyApplications(data || []);
+  }
+
+  async function loadMyReviews() {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("reviews")
+      .select("*")
+      .eq("reviewer_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Reviews error:", error);
+      return;
+    }
+
+    setMyReviews(data || []);
   }
 
   async function loadApplicationsForOwnedJobs() {
@@ -639,10 +665,23 @@ export default function Home() {
       return;
     }
 
+    if (
+      myReviews.some(
+        (review) => review.job_id === job.id
+      )
+    ) {
+      setNotice(
+        language === "en"
+          ? "You have already reviewed this job."
+          : "Već si ocijenio ovaj posao."
+      );
+      return;
+    }
+
     setActionLoading(true);
     setNotice("");
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("reviews")
       .insert({
         job_id: job.id,
@@ -650,7 +689,9 @@ export default function Home() {
         helper_id: job.selected_helper_id,
         rating: Number(reviewForm.rating),
         comment: reviewForm.comment.trim(),
-      });
+      })
+      .select()
+      .single();
 
     setActionLoading(false);
 
@@ -658,6 +699,11 @@ export default function Home() {
       setNotice(error.message);
       return;
     }
+
+    setMyReviews((current) => [
+      data,
+      ...current,
+    ]);
 
     setReviewForm({
       rating: 5,
@@ -847,8 +893,7 @@ export default function Home() {
       </main>
     );
   }
-
-  return (
+    return (
     <main className="v2-shell">
       <style jsx global>{`
         * {
@@ -863,10 +908,7 @@ export default function Home() {
           margin: 0;
           background: #f8faf7;
           color: #10231b;
-          font-family:
-            Arial,
-            Helvetica,
-            sans-serif;
+          font-family: Arial, Helvetica, sans-serif;
         }
 
         button,
@@ -2120,30 +2162,21 @@ export default function Home() {
           </div>
         </section>
       )}
-
       {view === "myTasks" && (
         <section className="dashboard">
           <div className="container">
-            <div className="section-head">
-              <div className="dashboard-head">
-                <h1>{t.myTasks}</h1>
-                <p>
-                  {language === "en"
-                    ? "Your tasks, offers and current status."
-                    : "Tvoji zadaci, ponude i trenutni status."}
-                </p>
-              </div>
-
-              <button
-                className="btn btn-dark"
-                onClick={openPostTask}
-              >
-                + {t.postTask}
-              </button>
+            <div className="dashboard-head">
+              <h1>{t.myTasks}</h1>
+              <p>
+                {language === "en"
+                  ? "Manage the tasks you have posted."
+                  : "Administriraj zadatke koje si objavio."}
+              </p>
             </div>
 
             {!user ? (
               <div className="empty">
+                <p>{t.loginRequired}</p>
                 <button
                   className="btn btn-dark"
                   onClick={() => setAuthOpen(true)}
@@ -2156,6 +2189,10 @@ export default function Home() {
                 {myTasks.map((job) => {
                   const applications =
                     applicationsByJob[job.id] || [];
+
+                  const review = myReviews.find(
+                    (item) => item.job_id === job.id
+                  );
 
                   return (
                     <div className="crm-card" key={job.id}>
@@ -2178,7 +2215,11 @@ export default function Home() {
 
                             <span className="crm-pill">
                               {applications.length}{" "}
-                              {t.applications}
+                              {language === "en"
+                                ? applications.length === 1
+                                  ? "offer"
+                                  : "offers"
+                                : "prijava"}
                             </span>
                           </div>
                         </div>
@@ -2190,38 +2231,13 @@ export default function Home() {
 
                       <p>{job.description}</p>
 
-                      {normalizeStatus(job.status) ===
-                        "assigned" && (
-                        <button
-                          className="btn"
-                          disabled={actionLoading}
-                          onClick={() =>
-                            updateJobStatus(
-                              job,
-                              "in_progress"
-                            )
-                          }
-                        >
-                          {t.startJob}
-                        </button>
-                      )}
-
-                      {normalizeStatus(job.status) ===
-                        "in_progress" && (
-                        <button
-                          className="btn btn-dark"
-                          disabled={actionLoading}
-                          onClick={() =>
-                            updateJobStatus(job, "completed")
-                          }
-                        >
-                          {t.finishJob}
-                        </button>
-                      )}
-
                       {applications.length > 0 && (
                         <div className="applications">
-                          <h4>{t.offers}</h4>
+                          <h4>
+                            {language === "en"
+                              ? "Offers"
+                              : "Ponude"}
+                          </h4>
 
                           {applications.map((application) => (
                             <div
@@ -2235,18 +2251,16 @@ export default function Home() {
                                     : "Ponuda pomagača"}
                                 </strong>
 
-                                <p>
-                                  {application.message ||
-                                    (language === "en"
-                                      ? "No message"
-                                      : "Bez poruke")}
-                                </p>
-
                                 <div className="crm-meta">
                                   <span className="crm-pill">
-                                    {formatPrice(
-                                      application.offered_price
-                                    )}
+                                    {application.offered_price !==
+                                    null
+                                      ? formatPrice(
+                                          application.offered_price
+                                        )
+                                      : language === "en"
+                                        ? "Price by agreement"
+                                        : "Cijena po dogovoru"}
                                   </span>
 
                                   <span className="crm-pill">
@@ -2255,12 +2269,16 @@ export default function Home() {
                                     )}
                                   </span>
                                 </div>
+
+                                {application.message && (
+                                  <p>{application.message}</p>
+                                )}
                               </div>
 
                               {normalizeStatus(job.status) ===
                                 "open" &&
-                                application.status !==
-                                  "rejected" && (
+                                application.status ===
+                                  "pending" && (
                                   <button
                                     className="btn btn-dark"
                                     disabled={actionLoading}
@@ -2271,7 +2289,9 @@ export default function Home() {
                                       )
                                     }
                                   >
-                                    {t.chooseHelper}
+                                    {language === "en"
+                                      ? "Choose helper"
+                                      : "Izaberi pomagača"}
                                   </button>
                                 )}
                             </div>
@@ -2280,67 +2300,147 @@ export default function Home() {
                       )}
 
                       {normalizeStatus(job.status) ===
+                        "assigned" &&
+                        job.owner_id === user.id && (
+                          <div
+                            className="crm-meta"
+                            style={{ marginTop: 18 }}
+                          >
+                            <button
+                              className="btn btn-dark"
+                              disabled={actionLoading}
+                              onClick={() =>
+                                updateJobStatus(
+                                  job,
+                                  "in_progress"
+                                )
+                              }
+                            >
+                              {language === "en"
+                                ? "Start job"
+                                : "Započni posao"}
+                            </button>
+                          </div>
+                        )}
+
+                      {normalizeStatus(job.status) ===
+                        "in_progress" &&
+                        job.owner_id === user.id && (
+                          <div
+                            className="crm-meta"
+                            style={{ marginTop: 18 }}
+                          >
+                            <button
+                              className="btn btn-dark"
+                              disabled={actionLoading}
+                              onClick={() =>
+                                updateJobStatus(
+                                  job,
+                                  "completed"
+                                )
+                              }
+                            >
+                              {language === "en"
+                                ? "Mark as completed"
+                                : "Označi kao završeno"}
+                            </button>
+                          </div>
+                        )}
+
+                      {normalizeStatus(job.status) ===
                         "completed" &&
                         job.selected_helper_id && (
                           <div className="review-box">
-                            <h4>{t.review}</h4>
+                            {review ? (
+                              <>
+                                <h4>
+                                  {language === "en"
+                                    ? "Review submitted"
+                                    : "Ocjena poslana"}
+                                </h4>
 
-                            <div className="two-fields">
-                              <label className="field">
-                                {language === "en"
-                                  ? "Rating"
-                                  : "Ocjena"}
+                                <div className="crm-meta">
+                                  <span className="crm-pill">
+                                    {"⭐".repeat(
+                                      Number(review.rating || 0)
+                                    )}
+                                  </span>
+                                </div>
 
-                                <select
-                                  value={reviewForm.rating}
-                                  onChange={(event) =>
-                                    setReviewForm((current) => ({
-                                      ...current,
-                                      rating:
-                                        event.target.value,
-                                    }))
+                                {review.comment && (
+                                  <p>{review.comment}</p>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <h4>{t.review}</h4>
+
+                                <div className="two-fields">
+                                  <label className="field">
+                                    {language === "en"
+                                      ? "Rating"
+                                      : "Ocjena"}
+
+                                    <select
+                                      value={reviewForm.rating}
+                                      onChange={(event) =>
+                                        setReviewForm(
+                                          (current) => ({
+                                            ...current,
+                                            rating:
+                                              event.target.value,
+                                          })
+                                        )
+                                      }
+                                    >
+                                      <option value="5">
+                                        ⭐⭐⭐⭐⭐
+                                      </option>
+                                      <option value="4">
+                                        ⭐⭐⭐⭐
+                                      </option>
+                                      <option value="3">
+                                        ⭐⭐⭐
+                                      </option>
+                                      <option value="2">
+                                        ⭐⭐
+                                      </option>
+                                      <option value="1">
+                                        ⭐
+                                      </option>
+                                    </select>
+                                  </label>
+
+                                  <label className="field">
+                                    {t.message}
+
+                                    <input
+                                      value={reviewForm.comment}
+                                      onChange={(event) =>
+                                        setReviewForm(
+                                          (current) => ({
+                                            ...current,
+                                            comment:
+                                              event.target.value,
+                                          })
+                                        )
+                                      }
+                                      placeholder={t.reviewText}
+                                    />
+                                  </label>
+                                </div>
+
+                                <button
+                                  className="btn btn-dark"
+                                  disabled={actionLoading}
+                                  onClick={() =>
+                                    submitReview(job)
                                   }
                                 >
-                                  <option value="5">
-                                    ⭐⭐⭐⭐⭐
-                                  </option>
-                                  <option value="4">
-                                    ⭐⭐⭐⭐
-                                  </option>
-                                  <option value="3">
-                                    ⭐⭐⭐
-                                  </option>
-                                  <option value="2">
-                                    ⭐⭐
-                                  </option>
-                                  <option value="1">⭐</option>
-                                </select>
-                              </label>
-
-                              <label className="field">
-                                {t.message}
-
-                                <input
-                                  value={reviewForm.comment}
-                                  onChange={(event) =>
-                                    setReviewForm((current) => ({
-                                      ...current,
-                                      comment:
-                                        event.target.value,
-                                    }))
-                                  }
-                                  placeholder={t.reviewText}
-                                />
-                              </label>
-                            </div>
-
-                            <button
-                              className="btn"
-                              disabled={actionLoading}
-                              onClick={() => submitReview(job)}
-                            >
-                              {t.review}
-                            </button>
+                                  {t.review}
+                                </button>
+                              </>
+                            )}
                           </div>
                         )}
                     </div>
@@ -2349,7 +2449,7 @@ export default function Home() {
               </div>
             ) : (
               <div className="empty">
-                <p>{t.noTasks}</p>
+                <p>{t.noMyTasks}</p>
 
                 <button
                   className="btn btn-dark"
@@ -2371,13 +2471,15 @@ export default function Home() {
 
               <p>
                 {language === "en"
-                  ? "Offers you've sent and jobs you've been selected for."
-                  : "Ponude koje si poslao i poslovi za koje si izabran."}
+                  ? "Your offers and jobs in one place."
+                  : "Tvoje prijave i poslovi na jednom mjestu."}
               </p>
             </div>
 
             {!user ? (
               <div className="empty">
+                <p>{t.loginRequired}</p>
+
                 <button
                   className="btn btn-dark"
                   onClick={() => setAuthOpen(true)}
@@ -2388,9 +2490,10 @@ export default function Home() {
             ) : helperJobs.length ? (
               <div className="dashboard-grid">
                 {helperJobs.map((job) => {
-                  const application = myApplications.find(
-                    (item) => item.job_id === job.id
-                  );
+                  const application =
+                    myApplications.find(
+                      (item) => item.job_id === job.id
+                    );
 
                   return (
                     <div className="crm-card" key={job.id}>
@@ -2401,6 +2504,10 @@ export default function Home() {
                           <div className="crm-meta">
                             <span className="crm-pill">
                               📍 {job.city}
+                            </span>
+
+                            <span className="crm-pill">
+                              {categoryLabel(job.category)}
                             </span>
 
                             <span className="crm-pill">
@@ -2427,38 +2534,51 @@ export default function Home() {
 
                       <p>{job.description}</p>
 
+                      {application?.message && (
+                        <p>
+                          <strong>
+                            {language === "en"
+                              ? "Your message:"
+                              : "Tvoja poruka:"}
+                          </strong>{" "}
+                          {application.message}
+                        </p>
+                      )}
+
                       {job.selected_helper_id === user.id &&
                         normalizeStatus(job.status) ===
                           "assigned" && (
-                          <button
-                            className="btn btn-dark"
-                            disabled={actionLoading}
-                            onClick={() =>
-                              updateJobStatus(
-                                job,
-                                "in_progress"
-                              )
-                            }
-                          >
-                            {t.startJob}
-                          </button>
+                          <div className="crm-meta">
+                            <span className="status">
+                              {language === "en"
+                                ? "You were selected"
+                                : "Izabran si za posao"}
+                            </span>
+                          </div>
                         )}
 
                       {job.selected_helper_id === user.id &&
                         normalizeStatus(job.status) ===
                           "in_progress" && (
-                          <button
-                            className="btn btn-dark"
-                            disabled={actionLoading}
-                            onClick={() =>
-                              updateJobStatus(
-                                job,
-                                "completed"
-                              )
-                            }
-                          >
-                            {t.finishJob}
-                          </button>
+                          <div className="crm-meta">
+                            <span className="status">
+                              {language === "en"
+                                ? "Job in progress"
+                                : "Posao je u toku"}
+                            </span>
+                          </div>
+                        )}
+
+                      {job.selected_helper_id === user.id &&
+                        normalizeStatus(job.status) ===
+                          "completed" && (
+                          <div className="crm-meta">
+                            <span className="status">
+                              {language === "en"
+                                ? "Job completed"
+                                : "Posao završen"}
+                            </span>
+                          </div>
                         )}
                     </div>
                   );
@@ -2466,7 +2586,7 @@ export default function Home() {
               </div>
             ) : (
               <div className="empty">
-                <p>{t.noHelperJobs}</p>
+                <p>{t.noMyJobs}</p>
 
                 <button
                   className="btn btn-dark"
@@ -2484,22 +2604,35 @@ export default function Home() {
         <section className="dashboard">
           <div className="container">
             <div className="dashboard-head">
-              <h1>{t.profileTitle}</h1>
+              <h1>{t.profile}</h1>
 
               <p>
                 {language === "en"
-                  ? "Manage your Sredi profile."
-                  : "Upravljaj svojim Sredi profilom."}
+                  ? "Keep your Sredi profile simple and up to date."
+                  : "Drži svoj Sredi profil jednostavnim i ažurnim."}
               </p>
             </div>
 
-            {user && (
+            {!user ? (
+              <div className="empty">
+                <p>{t.loginRequired}</p>
+
+                <button
+                  className="btn btn-dark"
+                  onClick={() => setAuthOpen(true)}
+                >
+                  {t.login}
+                </button>
+              </div>
+            ) : (
               <form
                 className="profile-form"
                 onSubmit={saveProfile}
               >
                 <label className="field">
-                  {t.fullName}
+                  {language === "en"
+                    ? "Full name"
+                    : "Ime i prezime"}
 
                   <input
                     value={profileForm.full_name}
@@ -2513,14 +2646,9 @@ export default function Home() {
                   />
                 </label>
 
-                <label className="field">
-                  Email
-                  <input value={user.email || ""} disabled />
-                </label>
-
                 <div className="two-fields">
                   <label className="field">
-                    {t.city}
+                    {language === "en" ? "City" : "Grad"}
 
                     <input
                       value={profileForm.city}
@@ -2530,11 +2658,14 @@ export default function Home() {
                           city: event.target.value,
                         }))
                       }
+                      placeholder="Sarajevo"
                     />
                   </label>
 
                   <label className="field">
-                    {t.phone}
+                    {language === "en"
+                      ? "Phone"
+                      : "Telefon"}
 
                     <input
                       value={profileForm.phone}
@@ -2544,12 +2675,13 @@ export default function Home() {
                           phone: event.target.value,
                         }))
                       }
+                      placeholder="+387..."
                     />
                   </label>
                 </div>
 
                 <label className="field">
-                  {t.bio}
+                  Bio
 
                   <textarea
                     value={profileForm.bio}
@@ -2558,6 +2690,11 @@ export default function Home() {
                         ...current,
                         bio: event.target.value,
                       }))
+                    }
+                    placeholder={
+                      language === "en"
+                        ? "Tell people a little about yourself."
+                        : "Napiši ukratko nešto o sebi."
                     }
                   />
                 </label>
@@ -2586,7 +2723,8 @@ export default function Home() {
                     onChange={(event) =>
                       setProfileForm((current) => ({
                         ...current,
-                        can_post_jobs: event.target.checked,
+                        can_post_jobs:
+                          event.target.checked,
                       }))
                     }
                   />
@@ -2596,26 +2734,17 @@ export default function Home() {
                     : "Želim moći objavljivati zadatke"}
                 </label>
 
-                <label className="field">
-                  {language === "en" ? "Language" : "Jezik"}
-
-                  <select
-                    value={language}
-                    onChange={(event) =>
-                      changeLanguage(event.target.value)
-                    }
+                <div>
+                  <button
+                    className="btn btn-dark"
+                    type="submit"
+                    disabled={actionLoading}
                   >
-                    <option value="bs">Bosanski</option>
-                    <option value="en">English</option>
-                  </select>
-                </label>
-
-                <button
-                  className="btn btn-dark"
-                  disabled={actionLoading}
-                >
-                  {actionLoading ? t.loading : t.save}
-                </button>
+                    {language === "en"
+                      ? "Save profile"
+                      : "Sačuvaj profil"}
+                  </button>
+                </div>
               </form>
             )}
           </div>
@@ -2625,10 +2754,11 @@ export default function Home() {
       <footer className="footer">
         <div className="container footer-inner">
           <strong>SREDI.ba</strong>
+
           <span>
             {language === "en"
-              ? "Help. Work. Get it done."
-              : "Pomoć. Posao. Sredi."}
+              ? "Simple help. Local people."
+              : "Jednostavna pomoć. Lokalni ljudi."}
           </span>
         </div>
       </footer>
@@ -2651,8 +2781,10 @@ export default function Home() {
           onClick={() => setPostOpen(false)}
         >
           <div
-            className="v2-modal"
-            onClick={(event) => event.stopPropagation()}
+            className="v2-modal modal-large"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
           >
             <div className="modal-head-v2">
               <div>
@@ -2660,13 +2792,14 @@ export default function Home() {
 
                 <p>
                   {language === "en"
-                    ? "Tell helpers what you need."
-                    : "Opiši pomagačima šta trebaš."}
+                    ? "Describe what you need help with."
+                    : "Opiši šta ti je potrebno."}
                 </p>
               </div>
 
               <button
                 className="modal-close"
+                type="button"
                 onClick={() => setPostOpen(false)}
               >
                 ×
@@ -2678,7 +2811,9 @@ export default function Home() {
               onSubmit={handleCreateJob}
             >
               <label className="field">
-                {t.title}
+                {language === "en"
+                  ? "Task title"
+                  : "Naziv zadatka"}
 
                 <input
                   value={jobForm.title}
@@ -2688,12 +2823,19 @@ export default function Home() {
                       title: event.target.value,
                     }))
                   }
+                  placeholder={
+                    language === "en"
+                      ? "e.g. Clean my apartment"
+                      : "npr. Čišćenje stana"
+                  }
                   required
                 />
               </label>
 
               <label className="field">
-                {t.description}
+                {language === "en"
+                  ? "Description"
+                  : "Opis"}
 
                 <textarea
                   value={jobForm.description}
@@ -2703,13 +2845,20 @@ export default function Home() {
                       description: event.target.value,
                     }))
                   }
+                  placeholder={
+                    language === "en"
+                      ? "Describe the task..."
+                      : "Opiši zadatak..."
+                  }
                   required
                 />
               </label>
 
               <div className="two-fields">
                 <label className="field">
-                  {t.category}
+                  {language === "en"
+                    ? "Category"
+                    : "Kategorija"}
 
                   <select
                     value={jobForm.category}
@@ -2725,6 +2874,7 @@ export default function Home() {
                         key={category.name}
                         value={category.name}
                       >
+                        {category.icon}{" "}
                         {categoryLabel(category.name)}
                       </option>
                     ))}
@@ -2732,7 +2882,7 @@ export default function Home() {
                 </label>
 
                 <label className="field">
-                  {t.city}
+                  {language === "en" ? "City" : "Grad"}
 
                   <input
                     value={jobForm.city}
@@ -2742,13 +2892,16 @@ export default function Home() {
                         city: event.target.value,
                       }))
                     }
+                    placeholder="Sarajevo"
                     required
                   />
                 </label>
               </div>
 
               <label className="field">
-                {t.budget} (KM)
+                {language === "en"
+                  ? "Budget (KM)"
+                  : "Budžet (KM)"}
 
                 <input
                   type="number"
@@ -2761,14 +2914,20 @@ export default function Home() {
                       price: event.target.value,
                     }))
                   }
+                  placeholder="100"
                 />
               </label>
 
               <button
                 className="btn btn-dark"
+                type="submit"
                 disabled={actionLoading}
               >
-                {actionLoading ? t.loading : t.postTask}
+                {actionLoading
+                  ? language === "en"
+                    ? "Posting..."
+                    : "Objavljujem..."
+                  : t.postTask}
               </button>
             </form>
           </div>
@@ -2782,30 +2941,42 @@ export default function Home() {
         >
           <div
             className="v2-modal modal-large"
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) =>
+              event.stopPropagation()
+            }
           >
             <div className="modal-head-v2">
               <div>
-                <span className="status">
-                  {selectedJob.demo
-                    ? language === "en"
-                      ? "Example"
-                      : "Primjer"
-                    : statusLabel(selectedJob.status)}
-                </span>
+                <div className="crm-meta">
+                  <span className="crm-pill">
+                    {selectedJob.icon ||
+                      getCategoryIcon(
+                        selectedJob.category
+                      )}{" "}
+                    {categoryLabel(
+                      selectedJob.category
+                    )}
+                  </span>
 
-                <h2 style={{ marginTop: 12 }}>
+                  <span className="crm-pill">
+                    📍 {selectedJob.city}
+                  </span>
+
+                  {selectedJob.demo && (
+                    <span className="crm-pill">
+                      Demo
+                    </span>
+                  )}
+                </div>
+
+                <h2 style={{ marginTop: 15 }}>
                   {selectedJob.title}
                 </h2>
-
-                <p>
-                  📍 {selectedJob.city} ·{" "}
-                  {categoryLabel(selectedJob.category)}
-                </p>
               </div>
 
               <button
                 className="modal-close"
+                type="button"
                 onClick={() => setSelectedJob(null)}
               >
                 ×
@@ -2823,30 +2994,61 @@ export default function Home() {
             {selectedJob.demo ? (
               <div className="notice-global">
                 {language === "en"
-                  ? "This is an example task. Real user tasks can receive offers."
-                  : "Ovo je primjer zadatka. Na stvarne zadatke korisnici mogu slati ponude."}
+                  ? "This is an example task. Create or log in to use real tasks."
+                  : "Ovo je primjer zadatka. Kreiraj profil ili se prijavi za stvarne zadatke."}
               </div>
             ) : selectedJob.owner_id === user?.id ? (
               <div className="notice-global">
                 {language === "en"
-                  ? "This is your task. Manage offers under My tasks."
-                  : "Ovo je tvoj zadatak. Ponudama upravljaš pod Moji zadaci."}
+                  ? "This is your task. You can manage offers under My tasks."
+                  : "Ovo je tvoj zadatak. Ponudama upravljaš u Moji zadaci."}
+              </div>
+            ) : normalizeStatus(
+                selectedJob.status
+              ) !== "open" ? (
+              <div className="notice-global">
+                {language === "en"
+                  ? "This task is no longer accepting offers."
+                  : "Ovaj zadatak više ne prima ponude."}
+              </div>
+            ) : !user ? (
+              <div className="modal-form">
+                <div className="notice-global">
+                  {language === "en"
+                    ? "Log in to send an offer."
+                    : "Prijavi se kako bi poslao ponudu."}
+                </div>
+
+                <button
+                  className="btn btn-dark"
+                  onClick={() => {
+                    setSelectedJob(null);
+                    setAuthOpen(true);
+                  }}
+                >
+                  {t.login}
+                </button>
+              </div>
+            ) : myApplications.some(
+                (application) =>
+                  application.job_id ===
+                  selectedJob.id
+              ) ? (
+              <div className="notice-global">
+                {language === "en"
+                  ? "You already sent an offer for this task."
+                  : "Već si poslao ponudu za ovaj zadatak."}
               </div>
             ) : (
               <form
                 className="modal-form"
-                onSubmit={(event) => {
-                  if (!user) {
-                    event.preventDefault();
-                    setSelectedJob(null);
-                    setAuthOpen(true);
-                    return;
-                  }
-
-                  handleApply(event);
-                }}
+                onSubmit={handleApply}
               >
-                <h3>{t.sendOffer}</h3>
+                <h3>
+                  {language === "en"
+                    ? "Send an offer"
+                    : "Pošalji ponudu"}
+                </h3>
 
                 <label className="field">
                   {t.message}
@@ -2854,44 +3056,61 @@ export default function Home() {
                   <textarea
                     value={applicationForm.message}
                     onChange={(event) =>
-                      setApplicationForm((current) => ({
-                        ...current,
-                        message: event.target.value,
-                      }))
+                      setApplicationForm(
+                        (current) => ({
+                          ...current,
+                          message:
+                            event.target.value,
+                        })
+                      )
                     }
                     placeholder={
                       language === "en"
-                        ? "Tell the customer why you're a good fit..."
-                        : "Napiši kratko zašto možeš pomoći..."
+                        ? "Tell the customer why you can help."
+                        : "Napiši naručiocu kako možeš pomoći."
                     }
                   />
                 </label>
 
                 <label className="field">
-                  {t.offer} (KM)
+                  {language === "en"
+                    ? "Your price (KM)"
+                    : "Tvoja cijena (KM)"}
 
                   <input
                     type="number"
                     min="0"
-                    value={applicationForm.offeredPrice}
+                    step="1"
+                    value={
+                      applicationForm.offeredPrice
+                    }
                     onChange={(event) =>
-                      setApplicationForm((current) => ({
-                        ...current,
-                        offeredPrice: event.target.value,
-                      }))
+                      setApplicationForm(
+                        (current) => ({
+                          ...current,
+                          offeredPrice:
+                            event.target.value,
+                        })
+                      )
+                    }
+                    placeholder={
+                      selectedJob.price || "100"
                     }
                   />
                 </label>
 
                 <button
                   className="btn btn-dark"
+                  type="submit"
                   disabled={actionLoading}
                 >
-                  {user
-                    ? actionLoading
-                      ? t.loading
-                      : t.sendOffer
-                    : t.login}
+                  {actionLoading
+                    ? language === "en"
+                      ? "Sending..."
+                      : "Šaljem..."
+                    : language === "en"
+                      ? "Send offer"
+                      : "Pošalji ponudu"}
                 </button>
               </form>
             )}
@@ -2939,14 +3158,14 @@ function JobCard({
           }`}
         >
           {job.demo
-            ? language === "en"
-              ? "Example"
-              : "Primjer"
+            ? "Demo"
             : statusLabel(job.status)}
         </span>
 
         <button className="btn" onClick={onOpen}>
-          {t.interested}
+          {language === "en"
+            ? "View task"
+            : "Pogledaj zadatak"}
         </button>
       </div>
     </article>
