@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AuthModal from "../components/AuthModal";
 import { supabase } from "../lib/supabase";
+import {
+  translations,
+  categoryTranslations,
+} from "./translations";
 
 const categories = [
   { icon: "🧹", name: "Čišćenje" },
@@ -17,7 +21,8 @@ const categories = [
 
 const demoJobs = [
   {
-    id: 1,
+    id: "demo-1",
+    demo: true,
     icon: "🧹",
     title: "Čišćenje stana",
     city: "Sarajevo",
@@ -25,118 +30,50 @@ const demoJobs = [
     price: 80,
     description: "Potrebna pomoć oko generalnog čišćenja stana.",
     owner: "Amir K.",
+    status: "open",
   },
   {
-    id: 2,
+    id: "demo-2",
+    demo: true,
     icon: "📦",
     title: "Pomoć pri selidbi",
-    city: "Banja Luka",
+    city: "Mostar",
     category: "Selidbe",
     price: 120,
-    description: "Tražim pomoć za nošenje kutija i namještaja.",
-    owner: "Marko P.",
+    description: "Potrebna pomoć pri nošenju stvari i selidbi.",
+    owner: "Lejla M.",
+    status: "open",
   },
   {
-    id: 3,
+    id: "demo-3",
+    demo: true,
     icon: "🌿",
-    title: "Košenje trave",
-    city: "Mostar",
+    title: "Sređivanje bašte",
+    city: "Tuzla",
     category: "Kuća & bašta",
-    price: 60,
-    description: "Potrebno pokositi travu i srediti manje dvorište.",
-    owner: "Lejla H.",
+    price: 100,
+    description: "Košenje trave i osnovno sređivanje bašte.",
+    owner: "Haris S.",
+    status: "open",
   },
   {
-    id: 4,
+    id: "demo-4",
+    demo: true,
     icon: "🔧",
-    title: "Montaža namještaja",
-    city: "Tuzla",
+    title: "Montaža ormara",
+    city: "Banja Luka",
     category: "Montaža",
     price: 90,
-    description: "Potrebna montaža ormara i jedne komode.",
-    owner: "Haris S.",
-  },
-  {
-    id: 5,
-    icon: "🚗",
-    title: "Preuzimanje i dostava",
-    city: "Zenica",
-    category: "Prevoz",
-    price: 45,
-    description: "Preuzeti paket u centru i dostaviti ga na adresu.",
-    owner: "Emina B.",
-  },
-  {
-    id: 6,
-    icon: "🏠",
-    title: "Pomoć oko stana",
-    city: "Bihać",
-    category: "Praktična pomoć",
-    price: 100,
-    description: "Potrebna pomoć oko nekoliko manjih poslova u stanu.",
-    owner: "Adnan M.",
+    description: "Potrebna montaža novog ormara.",
+    owner: "Jasmina D.",
+    status: "open",
   },
 ];
 
-const demoHelpers = [
-  {
-    id: 1,
-    name: "Amar H.",
-    initials: "AH",
-    city: "Sarajevo",
-    rating: 4.9,
-    reviewCount: 47,
-    completedJobs: 63,
-    bio: "Pouzdan i iskusan pomagač za montažu, selidbe i praktične poslove.",
-    skills: ["Montaža", "Selidbe", "Praktična pomoć"],
-  },
-  {
-    id: 2,
-    name: "Lejla M.",
-    initials: "LM",
-    city: "Mostar",
-    rating: 5.0,
-    reviewCount: 31,
-    completedJobs: 38,
-    bio: "Pažljiva i odgovorna pomoć za čišćenje, dom i baštu.",
-    skills: ["Čišćenje", "Kuća & bašta"],
-  },
-  {
-    id: 3,
-    name: "Adnan K.",
-    initials: "AK",
-    city: "Tuzla",
-    rating: 4.8,
-    reviewCount: 82,
-    completedJobs: 104,
-    bio: "Iskusan pomagač za prevoz, selidbe i montažu.",
-    skills: ["Prevoz", "Selidbe", "Montaža"],
-  },
-];
+function getInitials(name = "") {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
 
-function getUserName(user) {
-  if (!user) return "";
-
-  const metadataName = user.user_metadata?.full_name?.trim();
-
-  if (metadataName) return metadataName;
-
-  return user.email?.split("@")[0] || "Korisnik";
-}
-
-function getUserRole(user) {
-  return user?.user_metadata?.role === "helper"
-    ? "helper"
-    : "customer";
-}
-
-function getInitials(name) {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (!parts.length) return "S";
+  if (!parts.length) return "SR";
 
   return parts
     .slice(0, 2)
@@ -144,64 +81,132 @@ function getInitials(name) {
     .join("");
 }
 
+function getCategoryIcon(category) {
+  return (
+    categories.find((item) => item.name === category)?.icon || "✨"
+  );
+}
+
+function formatPrice(price) {
+  const number = Number(price);
+
+  if (!Number.isFinite(number)) return "Po dogovoru";
+
+  return `${number.toLocaleString("bs-BA")} KM`;
+}
+
+function normalizeStatus(status) {
+  if (!status) return "open";
+
+  const value = String(status).toLowerCase();
+
+  if (["assigned", "accepted"].includes(value)) return "assigned";
+  if (["in_progress", "progress", "active"].includes(value))
+    return "in_progress";
+  if (["completed", "done"].includes(value)) return "completed";
+  if (["cancelled", "canceled"].includes(value)) return "cancelled";
+
+  return "open";
+}
+
 export default function Home() {
-  const [mode, setMode] = useState("help");
-  const [query, setQuery] = useState("");
-  const [city, setCity] = useState("Cijela BiH");
-  const [category, setCategory] = useState("Sve");
+  const [language, setLanguage] = useState("bs");
+
+  const t = translations[language] || translations.bs;
 
   const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [profile, setProfile] = useState(null);
 
-  const [showAuth, setShowAuth] = useState(false);
-  const [showJobForm, setShowJobForm] = useState(false);
-  const [showMyProfile, setShowMyProfile] = useState(false);
-  const [showMyJobs, setShowMyJobs] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
+  const [view, setView] = useState("home");
+
+  const [jobs, setJobs] = useState([]);
+  const [myApplications, setMyApplications] = useState([]);
+  const [applicationsByJob, setApplicationsByJob] = useState({});
 
   const [selectedJob, setSelectedJob] = useState(null);
-  const [selectedHelper, setSelectedHelper] = useState(null);
 
+  const [search, setSearch] = useState("");
+  const [cityFilter, setCityFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [notice, setNotice] = useState("");
 
-  const menuRef = useRef(null);
+  const [postOpen, setPostOpen] = useState(false);
 
   const [jobForm, setJobForm] = useState({
     title: "",
-    category: "",
-    city: "",
-    budget: "",
     description: "",
+    category: "Čišćenje",
+    city: "",
+    price: "",
   });
 
-  const userName = getUserName(user);
-  const userRole = getUserRole(user);
-  const isHelper = userRole === "helper";
+  const [applicationForm, setApplicationForm] = useState({
+    message: "",
+    offeredPrice: "",
+  });
+
+  const [profileForm, setProfileForm] = useState({
+    full_name: "",
+    city: "",
+    phone: "",
+    bio: "",
+    is_helper: false,
+    can_post_jobs: true,
+  });
+
+  const [reviewForm, setReviewForm] = useState({
+    rating: 5,
+    comment: "",
+  });
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadSession() {
+    async function start() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
+      if (!mounted) return;
+
+      setUser(session?.user || null);
+
+      if (session?.user) {
+        await loadProfile(session.user);
+      }
+
+      await loadJobs();
+
       if (mounted) {
-        setUser(session?.user ?? null);
-        setAuthLoading(false);
+        setLoading(false);
       }
     }
 
-    loadSession();
+    start();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const nextUser = session?.user || null;
 
-      if (session?.user) {
-        setShowAuth(false);
+      setUser(nextUser);
+
+      if (nextUser) {
+        setTimeout(async () => {
+          await loadProfile(nextUser);
+          await loadJobs();
+        }, 0);
+      } else {
+        setProfile(null);
+        setMyApplications([]);
+        setApplicationsByJob({});
+        setView("home");
       }
     });
 
@@ -212,163 +217,640 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    function closeMenu(event) {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target)
-      ) {
-        setShowUserMenu(false);
+    if (!user) return;
+
+    loadMyApplications();
+
+    if (jobs.length) {
+      loadApplicationsForOwnedJobs();
+    }
+  }, [user, jobs]);
+
+  async function loadProfile(currentUser = user) {
+    if (!currentUser) return;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", currentUser.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Profile error:", error);
+      return;
+    }
+
+    if (!data) {
+      const metadata = currentUser.user_metadata || {};
+
+      const fallback = {
+        id: currentUser.id,
+        full_name:
+          metadata.full_name ||
+          currentUser.email?.split("@")[0] ||
+          "Sredi korisnik",
+        is_helper: metadata.role === "helper",
+        can_post_jobs: true,
+        language: "bs",
+      };
+
+      const { data: created, error: createError } = await supabase
+        .from("profiles")
+        .upsert(fallback)
+        .select()
+        .single();
+
+      if (createError) {
+        console.error("Profile create error:", createError);
+        return;
       }
-    }
 
-    document.addEventListener("mousedown", closeMenu);
-
-    return () => {
-      document.removeEventListener("mousedown", closeMenu);
-    };
-  }, []);
-
-  const filteredJobs = useMemo(() => {
-    const search = query.trim().toLowerCase();
-
-    return demoJobs.filter((job) => {
-      const matchesQuery =
-        !search ||
-        job.title.toLowerCase().includes(search) ||
-        job.description.toLowerCase().includes(search) ||
-        job.city.toLowerCase().includes(search) ||
-        job.category.toLowerCase().includes(search);
-
-      const matchesCity =
-        city === "Cijela BiH" || job.city === city;
-
-      const matchesCategory =
-        category === "Sve" || job.category === category;
-
-      return matchesQuery && matchesCity && matchesCategory;
-    });
-  }, [query, city, category]);
-
-  function scrollTo(id) {
-    document
-      .getElementById(id)
-      ?.scrollIntoView({ behavior: "smooth" });
-  }
-
-  function openAuth(message = "") {
-    setNotice(message);
-    setShowAuth(true);
-    setShowUserMenu(false);
-  }
-
-  function openJobForm() {
-    if (!user) {
-      openAuth(
-        "Prijavi se ili napravi profil kako bi objavio zadatak."
-      );
+      applyProfile(created);
       return;
     }
 
-    setShowJobForm(true);
-    setShowUserMenu(false);
+    applyProfile(data);
   }
 
-  function handleJobFormChange(event) {
-    const { name, value } = event.target;
+  function applyProfile(data) {
+    setProfile(data);
 
-    setJobForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
-  }
+    const savedLanguage =
+      data?.language === "en" ? "en" : "bs";
 
-  function handleJobContinue(event) {
-    event.preventDefault();
+    setLanguage(savedLanguage);
 
-    if (!user) {
-      setShowJobForm(false);
-      openAuth(
-        "Prijavi se ili napravi profil kako bi objavio zadatak."
-      );
-      return;
-    }
-
-    setShowJobForm(false);
-    setNotice(
-      "Forma radi. U sljedećem koraku povezujemo stvarno objavljivanje zadataka sa bazom."
-    );
-
-    setJobForm({
-      title: "",
-      category: "",
-      city: "",
-      budget: "",
-      description: "",
+    setProfileForm({
+      full_name: data?.full_name || "",
+      city: data?.city || "",
+      phone: data?.phone || "",
+      bio: data?.bio || "",
+      is_helper: Boolean(data?.is_helper),
+      can_post_jobs:
+        data?.can_post_jobs === null ||
+        data?.can_post_jobs === undefined
+          ? true
+          : Boolean(data.can_post_jobs),
     });
   }
 
-  function handleApply(job) {
-    setSelectedJob(null);
+  async function loadJobs() {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-    if (!user) {
-      openAuth(
-        `Prijavi se kako bi se javio za zadatak "${job.title}".`
-      );
+    if (error) {
+      console.error("Jobs error:", error);
+      setNotice(error.message);
       return;
     }
 
-    if (!isHelper) {
-      setNotice(
-        "Za prijavu na zadatke potreban je profil pomagača."
-      );
+    setJobs(data || []);
+  }
+
+  async function loadMyApplications() {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .eq("helper_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Applications error:", error);
       return;
     }
 
-    setNotice(
-      `Prijava za "${job.title}" će biti povezana sa bazom u sljedećem koraku.`
-    );
+    setMyApplications(data || []);
+  }
+
+  async function loadApplicationsForOwnedJobs() {
+    if (!user) return;
+
+    const ownedIds = jobs
+      .filter((job) => job.owner_id === user.id)
+      .map((job) => job.id);
+
+    if (!ownedIds.length) {
+      setApplicationsByJob({});
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .in("job_id", ownedIds)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Owned applications error:", error);
+      return;
+    }
+
+    const grouped = {};
+
+    for (const application of data || []) {
+      if (!grouped[application.job_id]) {
+        grouped[application.job_id] = [];
+      }
+
+      grouped[application.job_id].push(application);
+    }
+
+    setApplicationsByJob(grouped);
   }
 
   async function handleLogout() {
-    setShowUserMenu(false);
+    await supabase.auth.signOut();
 
-    const { error } = await supabase.auth.signOut();
+    setProfileMenuOpen(false);
+    setView("home");
+    setNotice("");
+  }
+
+  function requireAuth(callback) {
+    if (!user) {
+      setAuthOpen(true);
+      return;
+    }
+
+    callback();
+  }
+
+  function openPostTask() {
+    requireAuth(() => {
+      if (profile?.can_post_jobs === false) {
+        setNotice(
+          language === "en"
+            ? "Your profile cannot post tasks."
+            : "Tvoj profil trenutno ne može objavljivati zadatke."
+        );
+        return;
+      }
+
+      setPostOpen(true);
+    });
+  }
+
+  async function handleCreateJob(event) {
+    event.preventDefault();
+
+    if (!user) {
+      setAuthOpen(true);
+      return;
+    }
+
+    if (
+      !jobForm.title.trim() ||
+      !jobForm.description.trim() ||
+      !jobForm.city.trim()
+    ) {
+      setNotice(
+        language === "en"
+          ? "Please complete all required fields."
+          : "Popuni sva obavezna polja."
+      );
+      return;
+    }
+
+    setActionLoading(true);
+    setNotice("");
+
+    const payload = {
+      owner_id: user.id,
+      title: jobForm.title.trim(),
+      description: jobForm.description.trim(),
+      category: jobForm.category,
+      city: jobForm.city.trim(),
+      price:
+        jobForm.price === ""
+          ? null
+          : Number(jobForm.price),
+      status: "open",
+    };
+
+    const { data, error } = await supabase
+      .from("jobs")
+      .insert(payload)
+      .select()
+      .single();
+
+    setActionLoading(false);
 
     if (error) {
       setNotice(error.message);
       return;
     }
 
-    setUser(null);
-    setShowMyProfile(false);
-    setShowMyJobs(false);
-    setNotice("Uspješno ste se odjavili.");
+    setJobs((current) => [data, ...current]);
+
+    setJobForm({
+      title: "",
+      description: "",
+      category: "Čišćenje",
+      city: "",
+      price: "",
+    });
+
+    setPostOpen(false);
+    setView("myTasks");
+
+    setNotice(
+      language === "en"
+        ? "Your task has been posted."
+        : "Tvoj zadatak je objavljen."
+    );
   }
 
-  function handleAuthSuccess(authUser) {
-    if (authUser) {
-      setUser(authUser);
+  async function handleApply(event) {
+    event.preventDefault();
+
+    if (!user || !selectedJob || selectedJob.demo) return;
+
+    if (selectedJob.owner_id === user.id) {
+      setNotice(
+        language === "en"
+          ? "You cannot apply to your own task."
+          : "Ne možeš se prijaviti na vlastiti zadatak."
+      );
+      return;
     }
 
-    setShowAuth(false);
+    const existing = myApplications.find(
+      (item) => item.job_id === selectedJob.id
+    );
+
+    if (existing) {
+      setNotice(
+        language === "en"
+          ? "You already applied to this task."
+          : "Već si se prijavio na ovaj zadatak."
+      );
+      return;
+    }
+
+    setActionLoading(true);
+    setNotice("");
+
+    const { data, error } = await supabase
+      .from("applications")
+      .insert({
+        job_id: selectedJob.id,
+        helper_id: user.id,
+        message: applicationForm.message.trim(),
+        offered_price:
+          applicationForm.offeredPrice === ""
+            ? null
+            : Number(applicationForm.offeredPrice),
+        status: "pending",
+      })
+      .select()
+      .single();
+
+    setActionLoading(false);
+
+    if (error) {
+      setNotice(error.message);
+      return;
+    }
+
+    setMyApplications((current) => [data, ...current]);
+
+    setApplicationForm({
+      message: "",
+      offeredPrice: "",
+    });
+
+    setSelectedJob(null);
+
+    setNotice(
+      language === "en"
+        ? "Your offer has been sent."
+        : "Tvoja ponuda je poslana."
+    );
+  }
+
+  async function chooseHelper(job, application) {
+    if (!user || job.owner_id !== user.id) return;
+
+    setActionLoading(true);
+    setNotice("");
+
+    const { error: jobError } = await supabase
+      .from("jobs")
+      .update({
+        selected_helper_id: application.helper_id,
+        status: "assigned",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", job.id)
+      .eq("owner_id", user.id);
+
+    if (jobError) {
+      setActionLoading(false);
+      setNotice(jobError.message);
+      return;
+    }
+
+    const { error: acceptedError } = await supabase
+      .from("applications")
+      .update({ status: "accepted" })
+      .eq("id", application.id);
+
+    if (acceptedError) {
+      setActionLoading(false);
+      setNotice(acceptedError.message);
+      return;
+    }
+
+    await supabase
+      .from("applications")
+      .update({ status: "rejected" })
+      .eq("job_id", job.id)
+      .neq("id", application.id);
+
+    await loadJobs();
+    await loadMyApplications();
+    await loadApplicationsForOwnedJobs();
+
+    setActionLoading(false);
+
+    setNotice(
+      language === "en"
+        ? "Helper selected."
+        : "Pomagač je izabran."
+    );
+  }
+
+  async function updateJobStatus(job, status) {
+    if (!user) return;
+
+    const allowed =
+      job.owner_id === user.id ||
+      job.selected_helper_id === user.id;
+
+    if (!allowed) return;
+
+    setActionLoading(true);
+    setNotice("");
+
+    const update = {
+      status,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (status === "completed") {
+      update.completed_at = new Date().toISOString();
+    }
+
+    const { error } = await supabase
+      .from("jobs")
+      .update(update)
+      .eq("id", job.id);
+
+    setActionLoading(false);
+
+    if (error) {
+      setNotice(error.message);
+      return;
+    }
+
+    await loadJobs();
+
+    setNotice(
+      status === "completed"
+        ? language === "en"
+          ? "Job marked as completed."
+          : "Posao je označen kao završen."
+        : language === "en"
+          ? "Job started."
+          : "Posao je započet."
+    );
+  }
+
+  async function submitReview(job) {
+    if (
+      !user ||
+      !job.selected_helper_id ||
+      job.owner_id !== user.id
+    ) {
+      return;
+    }
+
+    setActionLoading(true);
+    setNotice("");
+
+    const { error } = await supabase
+      .from("reviews")
+      .insert({
+        job_id: job.id,
+        reviewer_id: user.id,
+        helper_id: job.selected_helper_id,
+        rating: Number(reviewForm.rating),
+        comment: reviewForm.comment.trim(),
+      });
+
+    setActionLoading(false);
+
+    if (error) {
+      setNotice(error.message);
+      return;
+    }
+
+    setReviewForm({
+      rating: 5,
+      comment: "",
+    });
+
+    setNotice(
+      language === "en"
+        ? "Thank you for your review."
+        : "Hvala na ocjeni."
+    );
+  }
+
+  async function saveProfile(event) {
+    event.preventDefault();
+
+    if (!user) return;
+
+    setActionLoading(true);
+    setNotice("");
+
+    const update = {
+      full_name: profileForm.full_name.trim(),
+      city: profileForm.city.trim() || null,
+      phone: profileForm.phone.trim() || null,
+      bio: profileForm.bio.trim() || null,
+      is_helper: Boolean(profileForm.is_helper),
+      can_post_jobs: Boolean(profileForm.can_post_jobs),
+      language,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update(update)
+      .eq("id", user.id)
+      .select()
+      .single();
+
+    setActionLoading(false);
+
+    if (error) {
+      setNotice(error.message);
+      return;
+    }
+
+    applyProfile(data);
+
+    setNotice(
+      language === "en"
+        ? "Profile saved."
+        : "Profil je sačuvan."
+    );
+  }
+
+  async function changeLanguage(nextLanguage) {
+    setLanguage(nextLanguage);
+
+    if (!user) return;
+
+    await supabase
+      .from("profiles")
+      .update({
+        language: nextLanguage,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+  }
+
+  const visibleJobs = useMemo(() => {
+    const databaseJobs = jobs.map((job) => ({
+      ...job,
+      icon: getCategoryIcon(job.category),
+      status: normalizeStatus(job.status),
+    }));
+
+    return [...databaseJobs, ...demoJobs].filter((job) => {
+      if (
+        !job.demo &&
+        normalizeStatus(job.status) !== "open"
+      ) {
+        return false;
+      }
+
+      const text = `${job.title || ""} ${job.description || ""} ${
+        job.city || ""
+      } ${job.category || ""}`.toLowerCase();
+
+      const matchesSearch =
+        !search.trim() ||
+        text.includes(search.trim().toLowerCase());
+
+      const matchesCity =
+        cityFilter === "all" || job.city === cityFilter;
+
+      const matchesCategory =
+        categoryFilter === "all" ||
+        job.category === categoryFilter;
+
+      return matchesSearch && matchesCity && matchesCategory;
+    });
+  }, [jobs, search, cityFilter, categoryFilter]);
+
+  const myTasks = useMemo(() => {
+    if (!user) return [];
+
+    return jobs.filter((job) => job.owner_id === user.id);
+  }, [jobs, user]);
+
+  const helperJobs = useMemo(() => {
+    if (!user) return [];
+
+    const applicationJobIds = new Set(
+      myApplications.map((application) => application.job_id)
+    );
+
+    return jobs.filter(
+      (job) =>
+        job.selected_helper_id === user.id ||
+        applicationJobIds.has(job.id)
+    );
+  }, [jobs, myApplications, user]);
+
+  const cities = useMemo(() => {
+    const values = [
+      ...jobs.map((job) => job.city),
+      ...demoJobs.map((job) => job.city),
+    ].filter(Boolean);
+
+    return [...new Set(values)].sort();
+  }, [jobs]);
+
+  function statusLabel(status) {
+    const normalized = normalizeStatus(status);
+
+    if (normalized === "assigned") return t.statusAssigned;
+    if (normalized === "in_progress") return t.statusProgress;
+    if (normalized === "completed") return t.statusCompleted;
+    if (normalized === "cancelled") return t.statusCancelled;
+
+    return t.statusOpen;
+  }
+
+  function applicationStatusLabel(status) {
+    if (status === "accepted") {
+      return language === "en" ? "Accepted" : "Prihvaćeno";
+    }
+
+    if (status === "rejected") {
+      return language === "en" ? "Not selected" : "Nije odabrano";
+    }
+
+    return t.pending;
+  }
+
+  function categoryLabel(category) {
+    if (language === "en") {
+      return categoryTranslations[category] || category;
+    }
+
+    return category;
+  }
+
+  function openJob(job) {
+    setSelectedJob(job);
     setNotice("");
   }
 
-  return (
-    <main className="site">
-      <style jsx global>{`
-        :root {
-          --green: #17231e;
-          --green-2: #213029;
-          --green-3: #304238;
-          --cream: #f7f8f5;
-          --white: #ffffff;
-          --line: #dfe3de;
-          --muted: #6d7771;
-          --soft: #e2eee6;
-          --gold: #f2b84b;
-        }
+  function navigate(nextView) {
+    setView(nextView);
+    setProfileMenuOpen(false);
+    setNotice("");
 
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  if (loading) {
+    return (
+      <main className="v2-shell">
+        <div className="loading-screen">
+          <strong>SREDI.ba</strong>
+          <span>{t.loading}</span>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="v2-shell">
+      <style jsx global>{`
         * {
           box-sizing: border-box;
         }
@@ -379,9 +861,12 @@ export default function Home() {
 
         body {
           margin: 0;
-          background: var(--cream);
-          color: var(--green);
-          font-family: Arial, Helvetica, sans-serif;
+          background: #f8faf7;
+          color: #10231b;
+          font-family:
+            Arial,
+            Helvetica,
+            sans-serif;
         }
 
         button,
@@ -395,49 +880,46 @@ export default function Home() {
           cursor: pointer;
         }
 
-        button:disabled {
-          cursor: not-allowed;
-          opacity: 0.65;
-        }
-
-        .site {
+        .v2-shell {
           min-height: 100vh;
-          overflow-x: hidden;
+          background: #f8faf7;
         }
 
-        .container {
-          width: min(1160px, calc(100% - 36px));
-          margin: 0 auto;
-        }
-
-        .header {
-          position: relative;
-          z-index: 100;
-          border-bottom: 1px solid var(--line);
-          background: var(--cream);
+        .topbar {
+          position: sticky;
+          top: 0;
+          z-index: 30;
+          background: rgba(248, 250, 247, 0.96);
+          border-bottom: 1px solid #dfe6e1;
+          backdrop-filter: blur(14px);
         }
 
         .nav {
-          min-height: 76px;
+          max-width: 1180px;
+          min-height: 82px;
+          margin: 0 auto;
+          padding: 14px 22px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 24px;
+          gap: 20px;
         }
 
-        .logo {
-          font-size: 28px;
+        .brand {
+          border: 0;
+          background: transparent;
+          padding: 0;
+          font-size: 30px;
           font-weight: 900;
-          letter-spacing: -1.5px;
-          white-space: nowrap;
+          letter-spacing: -1.8px;
+          color: #10231b;
         }
 
-        .logo span {
-          color: #728078;
-          font-weight: 700;
+        .brand span {
+          color: #829087;
         }
 
-        .nav-actions {
+        .nav-center {
           display: flex;
           align-items: center;
           gap: 8px;
@@ -446,287 +928,342 @@ export default function Home() {
         .nav-link {
           border: 0;
           background: transparent;
-          color: var(--green);
+          color: #10231b;
           font-weight: 800;
-          padding: 12px 10px;
+          padding: 12px 14px;
+          border-radius: 12px;
         }
 
-        .btn {
-          border: 0;
-          border-radius: 11px;
-          padding: 13px 18px;
-          font-weight: 850;
-          transition:
-            transform 0.15s ease,
-            opacity 0.15s ease;
+        .nav-link:hover {
+          background: #edf2ee;
         }
 
-        .btn:active {
-          transform: scale(0.98);
-        }
-
-        .btn-dark {
-          background: var(--green);
-          color: white;
-        }
-
-        .btn-light {
-          background: white;
-          color: var(--green);
-          border: 1px solid var(--line);
-        }
-
-        .btn-wide {
-          width: 100%;
-        }
-
-        .account-wrap {
+        .nav-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
           position: relative;
         }
 
-        .account-button {
-          min-width: 150px;
+        .language-switch {
           display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 11px;
-          border: 1px solid var(--line);
-          border-radius: 12px;
+          border: 1px solid #d9e1dc;
           background: white;
-          color: var(--green);
-          padding: 8px 11px;
+          border-radius: 12px;
+          padding: 3px;
         }
 
-        .account-avatar {
-          width: 34px;
-          height: 34px;
-          flex: 0 0 34px;
+        .language-switch button {
+          border: 0;
+          background: transparent;
+          padding: 8px 9px;
+          border-radius: 9px;
+          font-weight: 800;
+          color: #6c7a72;
+        }
+
+        .language-switch button.active {
+          background: #e7f3eb;
+          color: #10231b;
+        }
+
+        .btn {
+          border: 1px solid #d9e1dc;
+          border-radius: 13px;
+          min-height: 46px;
+          padding: 0 18px;
+          font-weight: 800;
+          background: white;
+          color: #10231b;
+        }
+
+        .btn-dark {
+          background: #10231b;
+          color: white;
+          border-color: #10231b;
+        }
+
+        .btn-soft {
+          background: #e8f3eb;
+          border-color: #e8f3eb;
+        }
+
+        .btn-danger {
+          color: #94453f;
+        }
+
+        .avatar-button {
+          width: 48px;
+          height: 48px;
+          border-radius: 15px;
+          border: 1px solid #d8e0db;
+          background: white;
           display: grid;
           place-items: center;
+          padding: 4px;
+        }
+
+        .avatar-circle {
+          width: 36px;
+          height: 36px;
           border-radius: 50%;
-          background: var(--green);
+          background: #10231b;
           color: white;
-          font-size: 11px;
+          display: grid;
+          place-items: center;
           font-weight: 900;
         }
 
-        .account-copy {
-          min-width: 0;
-          flex: 1;
-          text-align: left;
-        }
-
-        .account-name {
-          display: block;
-          max-width: 145px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          font-size: 13px;
-          font-weight: 900;
-        }
-
-        .account-role {
-          display: block;
-          margin-top: 2px;
-          color: var(--muted);
-          font-size: 10px;
-          font-weight: 700;
-        }
-
-        .account-arrow {
-          font-size: 11px;
-        }
-
-        .account-menu {
+        .profile-menu {
           position: absolute;
-          top: calc(100% + 9px);
+          top: 60px;
           right: 0;
-          width: 225px;
-          overflow: hidden;
-          border: 1px solid var(--line);
-          border-radius: 14px;
+          width: 270px;
           background: white;
-          box-shadow: 0 18px 45px rgba(23, 35, 30, 0.14);
+          border: 1px solid #dce3df;
+          border-radius: 20px;
+          box-shadow: 0 18px 50px rgba(15, 35, 27, 0.16);
+          overflow: hidden;
         }
 
-        .account-menu-head {
-          padding: 15px;
-          border-bottom: 1px solid var(--line);
+        .profile-menu-head {
+          padding: 20px;
+          border-bottom: 1px solid #e1e6e3;
         }
 
-        .account-menu-head strong {
+        .profile-menu-head strong {
           display: block;
-          margin-bottom: 4px;
-          font-size: 14px;
+          font-size: 20px;
+          margin-bottom: 7px;
         }
 
-        .account-menu-head span {
-          color: var(--muted);
-          font-size: 11px;
+        .profile-menu-head span {
+          color: #718078;
         }
 
-        .account-menu button {
+        .profile-menu button {
           width: 100%;
           border: 0;
-          border-bottom: 1px solid #eef0ed;
+          border-bottom: 1px solid #edf0ee;
           background: white;
-          color: var(--green);
-          padding: 13px 15px;
           text-align: left;
-          font-size: 13px;
+          padding: 17px 20px;
           font-weight: 800;
+          color: #10231b;
         }
 
-        .account-menu button:hover {
-          background: var(--cream);
+        .profile-menu button:hover {
+          background: #f5f8f6;
         }
 
-        .account-menu button:last-child {
+        .profile-menu button:last-child {
           border-bottom: 0;
+          color: #91463e;
         }
 
-        .logout-button {
-          color: #8b3434 !important;
+        .container {
+          max-width: 1180px;
+          margin: 0 auto;
+          padding: 0 22px;
+        }
+
+        .notice-global {
+          max-width: 1180px;
+          margin: 18px auto 0;
+          padding: 14px 18px;
+          border-radius: 14px;
+          background: #e5f2e9;
+          border: 1px solid #d2e6d8;
+          color: #244333;
         }
 
         .hero {
-          padding: 74px 0 72px;
+          padding: 76px 0 60px;
         }
 
-        .eyebrow {
-          display: inline-flex;
+        .hero-grid {
+          display: grid;
+          grid-template-columns: 1.08fr 0.92fr;
+          gap: 60px;
           align-items: center;
-          gap: 7px;
-          background: var(--soft);
+        }
+
+        .badge {
+          display: inline-flex;
+          background: #e4f1e7;
           border-radius: 999px;
           padding: 9px 13px;
-          font-size: 12px;
-          font-weight: 850;
+          font-size: 13px;
+          font-weight: 900;
+          margin-bottom: 25px;
         }
 
         .hero h1 {
-          max-width: 900px;
-          margin: 25px 0 24px;
-          font-size: clamp(60px, 9vw, 105px);
-          line-height: 0.88;
-          letter-spacing: -6px;
+          font-size: clamp(58px, 7vw, 94px);
+          line-height: 0.92;
+          letter-spacing: -5px;
+          margin: 0 0 25px;
+          max-width: 760px;
         }
 
-        .lead {
-          max-width: 650px;
-          margin: 0;
-          color: #65716a;
-          font-size: 19px;
-          line-height: 1.6;
+        .hero-copy {
+          max-width: 670px;
+          color: #64736b;
+          font-size: 20px;
+          line-height: 1.55;
         }
 
-        .mode-buttons {
+        .hero-buttons {
           display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          margin: 28px 0 20px;
+          gap: 12px;
+          margin: 30px 0 20px;
+        }
+
+        .hero-buttons .btn {
+          min-height: 54px;
+          padding: 0 22px;
         }
 
         .search-box {
-          max-width: 830px;
+          margin-top: 24px;
           display: grid;
-          grid-template-columns: 1fr 205px;
+          grid-template-columns: 1fr 230px;
+          border: 1px solid #dce3df;
+          border-radius: 18px;
           overflow: hidden;
           background: white;
-          border: 1px solid var(--line);
-          border-radius: 14px;
-          box-shadow: 0 10px 35px rgba(23, 35, 30, 0.04);
+          box-shadow: 0 12px 35px rgba(20, 40, 30, 0.06);
         }
 
         .search-box input,
         .search-box select {
-          min-width: 0;
+          min-height: 64px;
           border: 0;
-          outline: 0;
           background: white;
-          color: var(--green);
-          padding: 18px;
+          padding: 0 18px;
+          outline: none;
+          color: #10231b;
         }
 
         .search-box select {
-          border-left: 1px solid #e8ebe7;
+          border-left: 1px solid #e1e6e3;
         }
 
-        .hero-note {
-          margin-top: 15px;
-          color: var(--muted);
-          font-size: 13px;
+        .hero-panel {
+          background: #10231b;
+          color: white;
+          padding: 32px;
+          border-radius: 28px;
+          min-height: 390px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          box-shadow: 0 28px 70px rgba(15, 35, 27, 0.18);
+        }
+
+        .hero-panel-small {
+          color: #b7c5bd;
+          font-weight: 700;
+        }
+
+        .hero-panel-number {
+          font-size: 84px;
+          font-weight: 900;
+          letter-spacing: -5px;
+        }
+
+        .hero-panel h3 {
+          font-size: 29px;
+          margin: 0 0 10px;
+        }
+
+        .hero-panel p {
+          color: #b7c5bd;
+          line-height: 1.6;
         }
 
         .section {
-          padding: 68px 0;
+          padding: 70px 0;
         }
 
         .section-white {
           background: white;
         }
 
-        .section-dark {
-          background: var(--green);
-          color: white;
-        }
-
         .section-head {
           display: flex;
-          justify-content: space-between;
           align-items: end;
-          gap: 25px;
+          justify-content: space-between;
+          gap: 20px;
           margin-bottom: 28px;
         }
 
         .section-head h2 {
-          margin: 0;
-          font-size: 40px;
+          margin: 0 0 8px;
+          font-size: 42px;
           letter-spacing: -2px;
         }
 
         .section-head p {
-          margin: 9px 0 0;
-          color: var(--muted);
-          line-height: 1.55;
+          margin: 0;
+          color: #748078;
         }
 
-        .section-dark .section-head p {
-          color: #b8c1bb;
-        }
-
-        .categories {
+        .category-grid {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
-          gap: 12px;
+          gap: 14px;
         }
 
         .category-card {
-          min-height: 118px;
-          padding: 22px;
-          border: 1px solid var(--line);
-          border-radius: 16px;
+          border: 1px solid #e0e6e2;
           background: white;
-          color: var(--green);
+          border-radius: 18px;
+          padding: 22px;
           text-align: left;
+          min-height: 125px;
+          transition: 0.2s ease;
+        }
+
+        .category-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 14px 35px rgba(20, 40, 30, 0.08);
         }
 
         .category-card.active {
-          background: var(--green);
-          border-color: var(--green);
-          color: white;
+          border-color: #10231b;
+          background: #f0f5f1;
         }
 
         .category-icon {
+          font-size: 26px;
           display: block;
           margin-bottom: 16px;
-          font-size: 27px;
         }
 
         .category-name {
-          display: block;
           font-weight: 900;
+          font-size: 17px;
+        }
+
+        .jobs-toolbar {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 22px;
+        }
+
+        .jobs-toolbar input,
+        .jobs-toolbar select {
+          min-height: 52px;
+          border: 1px solid #dce3df;
+          background: white;
+          border-radius: 13px;
+          padding: 0 15px;
+          outline: none;
+        }
+
+        .jobs-toolbar input {
+          flex: 1;
         }
 
         .job-grid {
@@ -736,493 +1273,408 @@ export default function Home() {
         }
 
         .job-card {
+          background: white;
+          border: 1px solid #dfe5e1;
+          border-radius: 20px;
+          padding: 22px;
           display: flex;
           flex-direction: column;
-          min-height: 335px;
-          padding: 22px;
-          border: 1px solid var(--line);
-          border-radius: 18px;
-          background: white;
+          min-height: 270px;
+        }
+
+        .job-card-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 15px;
+          align-items: start;
         }
 
         .job-icon {
-          width: 52px;
-          height: 52px;
+          width: 46px;
+          height: 46px;
           display: grid;
           place-items: center;
-          border-radius: 14px;
-          background: #eef1ec;
-          font-size: 25px;
-        }
-
-        .job-card h3 {
-          margin: 22px 0 9px;
-          font-size: 21px;
-          letter-spacing: -0.5px;
-        }
-
-        .job-description {
-          flex: 1;
-          color: #66716b;
-          font-size: 14px;
-          line-height: 1.6;
-        }
-
-        .job-meta,
-        .job-owner {
-          color: var(--muted);
-          font-size: 13px;
-          line-height: 1.5;
-        }
-
-        .job-owner {
-          margin-top: 6px;
-        }
-
-        .job-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 12px;
-          margin-top: 18px;
-          padding-top: 17px;
-          border-top: 1px solid #eceeea;
+          border-radius: 13px;
+          background: #edf4ef;
+          font-size: 22px;
         }
 
         .price {
-          font-size: 22px;
           font-weight: 900;
-          white-space: nowrap;
+          font-size: 19px;
         }
 
-        .empty {
-          grid-column: 1 / -1;
-          padding: 30px;
-          border: 1px solid var(--line);
-          border-radius: 16px;
-          background: white;
-          color: var(--muted);
-          text-align: center;
-        }
-
-        .helper-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 16px;
-        }
-
-        .helper-card {
-          padding: 24px;
-          border: 1px solid #34443b;
-          border-radius: 18px;
-          background: var(--green-2);
-        }
-
-        .helper-head {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-        }
-
-        .avatar {
-          width: 58px;
-          height: 58px;
-          flex: 0 0 58px;
-          display: grid;
-          place-items: center;
-          border-radius: 50%;
-          background: #dce9dc;
-          color: var(--green);
-          font-weight: 900;
-        }
-
-        .helper-name {
-          font-size: 20px;
-          font-weight: 900;
-        }
-
-        .helper-city {
-          margin-top: 4px;
-          color: #b6c0ba;
-          font-size: 13px;
-        }
-
-        .helper-stats {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 15px;
-          margin: 21px 0;
-          padding: 18px 0;
-          border-top: 1px solid #35463c;
-          border-bottom: 1px solid #35463c;
-        }
-
-        .stat strong {
-          display: block;
-          margin-bottom: 5px;
+        .job-card h3 {
           font-size: 21px;
+          margin: 20px 0 7px;
         }
 
-        .stat span {
-          color: #b6c0ba;
-          font-size: 12px;
-        }
-
-        .rating {
-          color: var(--gold);
-        }
-
-        .helper-bio {
-          min-height: 65px;
-          color: #c7cfc9;
+        .job-meta {
+          color: #6e7c74;
           font-size: 14px;
-          line-height: 1.6;
+          margin-bottom: 13px;
         }
 
-        .tags {
+        .job-description {
+          color: #65736b;
+          line-height: 1.5;
+          flex: 1;
+        }
+
+        .job-card-bottom {
           display: flex;
-          flex-wrap: wrap;
-          gap: 7px;
-          margin: 18px 0;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+          margin-top: 20px;
         }
 
-        .tag {
-          padding: 7px 9px;
+        .status {
+          display: inline-flex;
           border-radius: 999px;
-          background: var(--green-3);
-          color: white;
-          font-size: 11px;
-          font-weight: 800;
+          background: #e8f3eb;
+          padding: 7px 10px;
+          font-size: 12px;
+          font-weight: 900;
         }
 
-        .helper-button {
-          width: 100%;
-          border: 0;
-          border-radius: 10px;
-          background: white;
-          color: var(--green);
-          padding: 13px;
-          font-weight: 900;
+        .demo-badge {
+          background: #f3eee2;
         }
 
         .how-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 16px;
+          gap: 18px;
         }
 
         .how-card {
-          padding: 26px;
-          border: 1px solid var(--line);
-          border-radius: 18px;
-          background: white;
+          padding: 28px;
+          border: 1px solid #e0e6e2;
+          border-radius: 20px;
+          background: #f9fbf9;
         }
 
         .step-number {
-          width: 43px;
-          height: 43px;
+          width: 42px;
+          height: 42px;
           display: grid;
           place-items: center;
           border-radius: 50%;
-          background: var(--green);
+          background: #10231b;
           color: white;
           font-weight: 900;
+          margin-bottom: 35px;
         }
 
         .how-card h3 {
-          margin: 20px 0 9px;
-          font-size: 20px;
+          font-size: 23px;
+          margin: 0 0 10px;
         }
 
         .how-card p {
-          margin: 0;
-          color: var(--muted);
+          color: #6b7971;
           line-height: 1.6;
         }
 
-        .trust-box {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 35px;
-          padding: 46px;
-          border-radius: 25px;
-          background: var(--soft);
+        .dashboard {
+          padding: 45px 0 80px;
         }
 
-        .trust-box h2 {
-          max-width: 620px;
-          margin: 0 0 12px;
-          font-size: 38px;
+        .dashboard-head {
+          margin-bottom: 28px;
+        }
+
+        .dashboard-head h1 {
+          font-size: 48px;
+          margin: 0 0 8px;
           letter-spacing: -2px;
         }
 
-        .trust-box p {
-          max-width: 650px;
+        .dashboard-head p {
+          color: #718078;
           margin: 0;
-          color: #66716b;
-          line-height: 1.6;
         }
 
-        .footer {
-          padding: 38px 0 50px;
-          border-top: 1px solid var(--line);
-        }
-
-        .footer-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 20px;
-        }
-
-        .footer p {
-          margin: 0;
-          color: var(--muted);
-          font-size: 13px;
-        }
-
-        .modal {
-          position: fixed;
-          inset: 0;
-          z-index: 1000;
+        .dashboard-grid {
           display: grid;
-          place-items: center;
-          padding: 18px;
-          background: rgba(12, 24, 17, 0.72);
+          gap: 16px;
         }
 
-        .modal-card {
-          width: min(520px, 100%);
-          max-height: 90vh;
-          overflow-y: auto;
-          padding: 27px;
-          border-radius: 21px;
-          background: var(--cream);
-          color: var(--green);
-          box-shadow: 0 30px 80px rgba(0, 0, 0, 0.25);
+        .crm-card {
+          background: white;
+          border: 1px solid #dfe5e1;
+          border-radius: 20px;
+          padding: 22px;
         }
 
-        .modal-card-large {
-          width: min(650px, 100%);
-        }
-
-        .modal-head {
+        .crm-card-head {
           display: flex;
           justify-content: space-between;
+          gap: 20px;
           align-items: start;
-          gap: 20px;
-          margin-bottom: 22px;
         }
 
-        .modal-head h2 {
-          margin: 0;
-          font-size: 31px;
-          letter-spacing: -1.5px;
+        .crm-card h3 {
+          margin: 0 0 7px;
+          font-size: 22px;
         }
 
-        .modal-head p {
-          margin: 7px 0 0;
-          color: var(--muted);
+        .crm-card p {
+          color: #6c7972;
         }
 
-        .close {
-          border: 0;
-          background: transparent;
-          color: var(--green);
-          font-size: 29px;
-          line-height: 1;
+        .crm-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 13px;
         }
 
-        .form {
-          display: grid;
-          gap: 12px;
-        }
-
-        .form label {
-          display: grid;
-          gap: 7px;
-          color: #455049;
+        .crm-pill {
+          background: #f0f4f1;
+          border-radius: 999px;
+          padding: 7px 10px;
           font-size: 13px;
           font-weight: 800;
         }
 
-        .form input,
-        .form select,
-        .form textarea {
-          width: 100%;
-          border: 1px solid #dce1dc;
-          border-radius: 11px;
-          outline: 0;
-          background: white;
-          color: var(--green);
-          padding: 14px;
+        .applications {
+          margin-top: 20px;
+          padding-top: 18px;
+          border-top: 1px solid #e7ebe8;
         }
 
-        .form textarea {
-          min-height: 115px;
+        .applications h4 {
+          margin: 0 0 12px;
+        }
+
+        .application {
+          display: flex;
+          justify-content: space-between;
+          gap: 20px;
+          padding: 14px 0;
+          border-bottom: 1px solid #edf0ee;
+        }
+
+        .application:last-child {
+          border-bottom: 0;
+        }
+
+        .application p {
+          margin: 6px 0 0;
+        }
+
+        .profile-form {
+          max-width: 720px;
+          display: grid;
+          gap: 17px;
+          background: white;
+          border: 1px solid #dfe5e1;
+          border-radius: 22px;
+          padding: 28px;
+        }
+
+        .field {
+          display: grid;
+          gap: 8px;
+          font-weight: 800;
+        }
+
+        .field input,
+        .field textarea,
+        .field select {
+          width: 100%;
+          border: 1px solid #d7dfda;
+          border-radius: 13px;
+          padding: 14px;
+          outline: none;
+          background: white;
+        }
+
+        .field textarea {
+          min-height: 120px;
           resize: vertical;
         }
 
-        .notice {
-          margin-bottom: 16px;
-          padding: 12px 14px;
-          border-radius: 10px;
-          background: var(--soft);
-          color: #3d4c43;
-          font-size: 13px;
-          line-height: 1.5;
-        }
-
-        .floating-notice {
-          position: fixed;
-          z-index: 1200;
-          left: 50%;
-          bottom: 24px;
-          transform: translateX(-50%);
-          width: min(500px, calc(100% - 30px));
-        }
-
-        .job-modal-price {
-          margin: 18px 0;
-          font-size: 27px;
-          font-weight: 900;
-        }
-
-        .profile-hero {
+        .checkbox-row {
           display: flex;
           align-items: center;
-          gap: 15px;
-          margin-bottom: 20px;
+          gap: 10px;
+          font-weight: 800;
         }
 
-        .profile-avatar {
-          width: 70px;
-          height: 70px;
-          display: grid;
-          place-items: center;
-          border-radius: 50%;
-          background: #dce9dc;
-          font-size: 20px;
-          font-weight: 900;
-        }
-
-        .profile-role {
-          display: inline-flex;
-          margin-top: 6px;
-          padding: 6px 9px;
-          border-radius: 999px;
-          background: var(--soft);
-          color: var(--green);
-          font-size: 11px;
-          font-weight: 900;
-        }
-
-        .profile-email {
-          margin: 6px 0 0;
-          color: var(--muted);
-          font-size: 13px;
-        }
-
-        .profile-rating {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          margin: 20px 0;
-          padding: 20px;
-          border-radius: 15px;
-          background: var(--green);
-          color: white;
-        }
-
-        .profile-rating strong {
-          display: block;
-          margin-bottom: 5px;
-          font-size: 24px;
-        }
-
-        .profile-rating span {
-          color: #c1cbc4;
-          font-size: 12px;
-        }
-
-        .rating-explanation {
-          padding: 14px;
-          border-radius: 11px;
-          background: var(--soft);
-          color: #4e5b53;
-          font-size: 13px;
-          line-height: 1.55;
-        }
-
-        .dashboard-box {
-          padding: 20px;
-          border: 1px solid var(--line);
-          border-radius: 15px;
+        .empty {
+          padding: 45px 25px;
+          border: 1px dashed #cfd9d3;
+          border-radius: 18px;
+          text-align: center;
+          color: #6d7a73;
           background: white;
         }
 
-        .dashboard-box + .dashboard-box {
-          margin-top: 12px;
+        .modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 80;
+          background: rgba(11, 26, 19, 0.65);
+          padding: 24px;
+          display: grid;
+          place-items: center;
+          overflow-y: auto;
         }
 
-        .dashboard-box h3 {
-          margin: 0 0 8px;
+        .v2-modal {
+          width: min(620px, 100%);
+          background: #fdfefd;
+          border-radius: 24px;
+          padding: 26px;
+          box-shadow: 0 25px 80px rgba(0, 0, 0, 0.28);
         }
 
-        .dashboard-box p {
+        .modal-large {
+          width: min(760px, 100%);
+        }
+
+        .modal-head-v2 {
+          display: flex;
+          justify-content: space-between;
+          gap: 20px;
+          align-items: start;
+          margin-bottom: 22px;
+        }
+
+        .modal-head-v2 h2 {
+          margin: 0 0 7px;
+          font-size: 29px;
+        }
+
+        .modal-head-v2 p {
+          color: #718078;
           margin: 0;
-          color: var(--muted);
-          line-height: 1.6;
         }
 
-        @media (max-width: 850px) {
-          .container {
-            width: calc(100% - 26px);
+        .modal-close {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          border: 0;
+          background: #edf2ee;
+          font-size: 24px;
+        }
+
+        .modal-form {
+          display: grid;
+          gap: 15px;
+        }
+
+        .two-fields {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+
+        .detail-price {
+          font-size: 27px;
+          font-weight: 900;
+          margin: 20px 0;
+        }
+
+        .detail-description {
+          line-height: 1.65;
+          color: #5f6f66;
+          white-space: pre-wrap;
+        }
+
+        .review-box {
+          margin-top: 18px;
+          padding-top: 18px;
+          border-top: 1px solid #e5eae7;
+        }
+
+        .footer {
+          padding: 40px 0;
+          border-top: 1px solid #dfe5e1;
+        }
+
+        .footer-inner {
+          display: flex;
+          justify-content: space-between;
+          gap: 20px;
+          color: #718078;
+        }
+
+        .loading-screen {
+          min-height: 100vh;
+          display: grid;
+          place-items: center;
+          align-content: center;
+          gap: 10px;
+        }
+
+        .loading-screen strong {
+          font-size: 38px;
+        }
+
+        @media (max-width: 900px) {
+          .nav-center {
+            display: none;
           }
 
+          .hero-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .hero-panel {
+            min-height: 280px;
+          }
+
+          .category-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .job-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .how-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 620px) {
           .nav {
-            min-height: 68px;
+            padding: 12px 16px;
           }
 
-          .nav-link {
+          .brand {
+            font-size: 27px;
+          }
+
+          .language-switch {
             display: none;
           }
 
-          .nav-actions {
-            gap: 6px;
-          }
-
-          .nav-actions > .btn {
-            padding: 11px 12px;
-            font-size: 13px;
-          }
-
-          .account-button {
-            min-width: 0;
-            padding: 7px;
-          }
-
-          .account-copy,
-          .account-arrow {
-            display: none;
-          }
-
-          .account-menu {
-            right: 0;
+          .nav-actions > .btn-dark {
+            padding: 0 13px;
           }
 
           .hero {
-            padding: 52px 0 55px;
+            padding: 48px 0;
           }
 
           .hero h1 {
-            font-size: 60px;
+            font-size: 62px;
             letter-spacing: -4px;
           }
 
-          .lead {
-            font-size: 16px;
+          .hero-copy {
+            font-size: 18px;
+          }
+
+          .hero-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
           }
 
           .search-box {
@@ -1230,657 +1682,1093 @@ export default function Home() {
           }
 
           .search-box select {
-            border-top: 1px solid #e8ebe7;
             border-left: 0;
+            border-top: 1px solid #e1e6e3;
+          }
+
+          .category-grid,
+          .job-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .jobs-toolbar {
+            display: grid;
           }
 
           .section {
-            padding: 52px 0;
-          }
-
-          .section-head {
-            align-items: start;
-            flex-direction: column;
+            padding: 50px 0;
           }
 
           .section-head h2 {
-            font-size: 33px;
+            font-size: 34px;
           }
 
-          .categories {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .job-grid,
-          .helper-grid,
-          .how-grid {
+          .two-fields {
             grid-template-columns: 1fr;
           }
 
-          .job-card {
-            min-height: 0;
+          .application {
+            display: grid;
           }
 
-          .helper-bio {
-            min-height: 0;
+          .dashboard-head h1 {
+            font-size: 39px;
           }
 
-          .trust-box {
-            align-items: start;
-            flex-direction: column;
-            padding: 30px;
-          }
-
-          .trust-box h2 {
-            font-size: 31px;
-          }
-
-          .footer-row {
-            align-items: start;
-            flex-direction: column;
-          }
-        }
-
-        @media (max-width: 420px) {
-          .logo {
-            font-size: 23px;
-          }
-
-          .hero h1 {
-            font-size: 53px;
-          }
-
-          .categories {
-            gap: 9px;
-          }
-
-          .category-card {
-            min-height: 105px;
-            padding: 17px;
-          }
-
-          .job-footer {
-            align-items: stretch;
-            flex-direction: column;
-          }
-
-          .job-footer .btn {
-            width: 100%;
-          }
-
-          .profile-rating {
-            grid-template-columns: 1fr;
+          .profile-menu {
+            position: fixed;
+            top: 78px;
+            left: 16px;
+            right: 16px;
+            width: auto;
           }
         }
       `}</style>
 
-      <header className="header">
-        <div className="container">
-          <nav className="nav">
-            <div className="logo">
-              SREDI<span>.ba</span>
-            </div>
+      <header className="topbar">
+        <nav className="nav">
+          <button
+            className="brand"
+            onClick={() => navigate("home")}
+          >
+            SREDI<span>.ba</span>
+          </button>
 
-            <div className="nav-actions">
-              <button
-                className="nav-link"
-                onClick={() => scrollTo("jobs")}
-              >
-                Poslovi
-              </button>
-
-              <button
-                className="nav-link"
-                onClick={() => scrollTo("helpers")}
-              >
-                Pomagači
-              </button>
-
-              <button
-                className="nav-link"
-                onClick={() => scrollTo("how")}
-              >
-                Kako radi?
-              </button>
-
-              {!authLoading && !user && (
-                <button
-                  className="btn btn-light"
-                  onClick={() => openAuth()}
-                >
-                  Prijavi se
-                </button>
-              )}
-
-              {!authLoading && user && (
-                <div className="account-wrap" ref={menuRef}>
-                  <button
-                    className="account-button"
-                    onClick={() =>
-                      setShowUserMenu((current) => !current)
-                    }
-                  >
-                    <span className="account-avatar">
-                      {getInitials(userName)}
-                    </span>
-
-                    <span className="account-copy">
-                      <span className="account-name">
-                        {userName}
-                      </span>
-
-                      <span className="account-role">
-                        {isHelper ? "Pomagač" : "Tražim pomoć"}
-                      </span>
-                    </span>
-
-                    <span className="account-arrow">
-                      ▾
-                    </span>
-                  </button>
-
-                  {showUserMenu && (
-                    <div className="account-menu">
-                      <div className="account-menu-head">
-                        <strong>{userName}</strong>
-                        <span>
-                          {isHelper
-                            ? "Pomagač"
-                            : "Tražim pomoć"}
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          setShowMyProfile(true);
-                          setShowUserMenu(false);
-                        }}
-                      >
-                        👤 Moj profil
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setShowMyJobs(true);
-                          setShowUserMenu(false);
-                        }}
-                      >
-                        {isHelper
-                          ? "🧰 Moji poslovi"
-                          : "📋 Moji zadaci"}
-                      </button>
-
-                      <button
-                        className="logout-button"
-                        onClick={handleLogout}
-                      >
-                        ↪ Odjavi se
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <button
-                className="btn btn-dark"
-                onClick={openJobForm}
-              >
-                Objavi zadatak
-              </button>
-            </div>
-          </nav>
-        </div>
-      </header>
-
-      <div className="container">
-        <section className="hero">
-          <div className="eyebrow">
-            🇧🇦 Pomoć širom Bosne i Hercegovine
-          </div>
-
-          <h1>
-            Treba ti pomoć?
-            <br />
-            Sredi.
-          </h1>
-
-          <p className="lead">
-            Objavi šta trebaš. Pronađi pouzdanog pomagača u
-            svojoj blizini. Ili zaradi pomažući drugima.
-          </p>
-
-          <div className="mode-buttons">
+          <div className="nav-center">
             <button
-              className={
-                mode === "help"
-                  ? "btn btn-dark"
-                  : "btn btn-light"
-              }
-              onClick={() => setMode("help")}
+              className="nav-link"
+              onClick={() => navigate("home")}
             >
-              Trebam pomoć
+              {t.home}
             </button>
 
             <button
-              className={
-                mode === "earn"
-                  ? "btn btn-dark"
-                  : "btn btn-light"
-              }
-              onClick={() => {
-                setMode("earn");
-                scrollTo("jobs");
-              }}
+              className="nav-link"
+              onClick={() => navigate("jobs")}
             >
-              Želim zaraditi
+              {t.jobs}
             </button>
-          </div>
-
-          <div className="search-box">
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={
-                mode === "earn"
-                  ? "Pretraži dostupne poslove..."
-                  : "Šta trebaš srediti?"
-              }
-            />
-
-            <select
-              value={city}
-              onChange={(event) => setCity(event.target.value)}
-            >
-              <option>Cijela BiH</option>
-              <option>Sarajevo</option>
-              <option>Banja Luka</option>
-              <option>Mostar</option>
-              <option>Tuzla</option>
-              <option>Zenica</option>
-              <option>Bihać</option>
-            </select>
-          </div>
-
-          <div className="hero-note">
-            Brzo pronađi zadatak ili pomoć u svom gradu.
-          </div>
-        </section>
-      </div>
-
-      <section className="section section-white">
-        <div className="container">
-          <div className="section-head">
-            <div>
-              <h2>Šta trebaš srediti?</h2>
-              <p>
-                Odaberi kategoriju i pronađi odgovarajuću pomoć.
-              </p>
-            </div>
-
-            {category !== "Sve" && (
-              <button
-                className="btn btn-light"
-                onClick={() => setCategory("Sve")}
-              >
-                Prikaži sve
-              </button>
-            )}
-          </div>
-
-          <div className="categories">
-            {categories.map((item) => (
-              <button
-                key={item.name}
-                className={
-                  category === item.name
-                    ? "category-card active"
-                    : "category-card"
-                }
-                onClick={() =>
-                  setCategory((current) =>
-                    current === item.name
-                      ? "Sve"
-                      : item.name
-                  )
-                }
-              >
-                <span className="category-icon">
-                  {item.icon}
-                </span>
-
-                <span className="category-name">
-                  {item.name}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="section" id="jobs">
-        <div className="container">
-          <div className="section-head">
-            <div>
-              <h2>Aktuelni poslovi</h2>
-              <p>{filteredJobs.length} dostupnih zadataka.</p>
-            </div>
 
             <button
-              className="btn btn-dark"
-              onClick={openJobForm}
+              className="nav-link"
+              onClick={() =>
+                document
+                  .getElementById("how")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
             >
-              + Objavi zadatak
+              {language === "en" ? "How it works" : "Kako radi?"}
             </button>
           </div>
 
-          <div className="job-grid">
-            {filteredJobs.map((job) => (
-              <article className="job-card" key={job.id}>
-                <div className="job-icon">{job.icon}</div>
+          <div className="nav-actions">
+            <div className="language-switch">
+              <button
+                className={language === "bs" ? "active" : ""}
+                onClick={() => changeLanguage("bs")}
+              >
+                BA
+              </button>
 
-                <h3>{job.title}</h3>
-
-                <div className="job-description">
-                  {job.description}
-                </div>
-
-                <div className="job-meta">
-                  📍 {job.city} · {job.category}
-                </div>
-
-                <div className="job-owner">
-                  Objavio: {job.owner}
-                </div>
-
-                <div className="job-footer">
-                  <div className="price">{job.price} KM</div>
-
-                  <button
-                    className="btn btn-dark"
-                    onClick={() => setSelectedJob(job)}
-                  >
-                    Zainteresovan sam
-                  </button>
-                </div>
-              </article>
-            ))}
-
-            {filteredJobs.length === 0 && (
-              <div className="empty">
-                Nema zadataka koji odgovaraju tvojoj pretrazi.
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section
-        className="section section-dark"
-        id="helpers"
-      >
-        <div className="container">
-          <div className="section-head">
-            <div>
-              <h2>Pouzdani pomagači</h2>
-              <p>
-                Pogledaj ocjene i iskustvo prije nego odabereš
-                pomagača.
-              </p>
-            </div>
-          </div>
-
-          <div className="helper-grid">
-            {demoHelpers.map((helper) => (
-              <article className="helper-card" key={helper.id}>
-                <div className="helper-head">
-                  <div className="avatar">
-                    {helper.initials}
-                  </div>
-
-                  <div>
-                    <div className="helper-name">
-                      {helper.name}
-                    </div>
-
-                    <div className="helper-city">
-                      📍 {helper.city}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="helper-stats">
-                  <div className="stat">
-                    <strong className="rating">
-                      ★ {helper.rating.toFixed(1)}
-                    </strong>
-
-                    <span>
-                      {helper.reviewCount} ocjena
-                    </span>
-                  </div>
-
-                  <div className="stat">
-                    <strong>{helper.completedJobs}</strong>
-                    <span>završenih poslova</span>
-                  </div>
-                </div>
-
-                <p className="helper-bio">
-                  {helper.bio}
-                </p>
-
-                <div className="tags">
-                  {helper.skills.map((skill) => (
-                    <span className="tag" key={skill}>
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-
-                <button
-                  className="helper-button"
-                  onClick={() => setSelectedHelper(helper)}
-                >
-                  Pogledaj profil
-                </button>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section
-        className="section section-white"
-        id="how"
-      >
-        <div className="container">
-          <div className="section-head">
-            <div>
-              <h2>Kako radi Sredi?</h2>
-              <p>Od objave zadatka do završene pomoći.</p>
-            </div>
-          </div>
-
-          <div className="how-grid">
-            <article className="how-card">
-              <div className="step-number">1</div>
-              <h3>Objavi zadatak</h3>
-              <p>
-                Opiši šta treba uraditi, odaberi grad i napiši
-                koliko želiš platiti.
-              </p>
-            </article>
-
-            <article className="how-card">
-              <div className="step-number">2</div>
-              <h3>Odaberi pomagača</h3>
-              <p>
-                Pomagači se mogu javiti na zadatak. Pogledaj
-                njihove ocjene i broj završenih poslova prije
-                nego odabereš.
-              </p>
-            </article>
-
-            <article className="how-card">
-              <div className="step-number">3</div>
-              <h3>Završi i ocijeni</h3>
-              <p>
-                Kada je posao završen, osoba koja je objavila
-                zadatak može ocijeniti izabranog pomagača sa
-                1–5 zvjezdica.
-              </p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section className="section">
-        <div className="container">
-          <div className="trust-box">
-            <div>
-              <h2>Dobar rad gradi dobru reputaciju.</h2>
-
-              <p>
-                Rating, broj ocjena i završeni poslovi pripadaju
-                samo pomagačima. Osoba koja objavljuje zadatak
-                nema rating na Sredi.
-              </p>
+              <button
+                className={language === "en" ? "active" : ""}
+                onClick={() => changeLanguage("en")}
+              >
+                EN
+              </button>
             </div>
 
             {!user ? (
               <button
-                className="btn btn-dark"
-                onClick={() => openAuth()}
+                className="btn"
+                onClick={() => setAuthOpen(true)}
               >
-                Napravi profil
+                {t.login}
               </button>
             ) : (
               <button
-                className="btn btn-dark"
-                onClick={() => setShowMyProfile(true)}
+                className="avatar-button"
+                onClick={() =>
+                  setProfileMenuOpen((current) => !current)
+                }
               >
-                Moj profil
+                <span className="avatar-circle">
+                  {getInitials(profile?.full_name)}
+                </span>
               </button>
             )}
+
+            <button
+              className="btn btn-dark"
+              onClick={openPostTask}
+            >
+              {t.postTask}
+            </button>
+
+            {user && profileMenuOpen && (
+              <div className="profile-menu">
+                <div className="profile-menu-head">
+                  <strong>
+                    {profile?.full_name ||
+                      user.email?.split("@")[0]}
+                  </strong>
+
+                  <span>
+                    {profile?.is_helper
+                      ? t.helper
+                      : t.customer}
+                  </span>
+                </div>
+
+                <button onClick={() => navigate("profile")}>
+                  👤 {t.profile}
+                </button>
+
+                <button onClick={() => navigate("myTasks")}>
+                  📋 {t.myTasks}
+                </button>
+
+                <button onClick={() => navigate("myJobs")}>
+                  💼 {t.myJobs}
+                </button>
+
+                <button onClick={handleLogout}>
+                  ↪ {t.logout}
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-      </section>
+        </nav>
+      </header>
 
-      <footer className="footer">
-        <div className="container footer-row">
-          <div className="logo">
-            SREDI<span>.ba</span>
-          </div>
+      {notice && (
+        <div className="notice-global">{notice}</div>
+      )}
 
-          <p>
-            © 2026 Sredi.ba · Ljudi pomažu ljudima 🇧🇦
-          </p>
-        </div>
-      </footer>
-
-      {showJobForm && (
-        <div
-          className="modal"
-          onClick={() => setShowJobForm(false)}
-        >
-          <div
-            className="modal-card"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="modal-head">
+      {view === "home" && (
+        <>
+          <section className="hero">
+            <div className="container hero-grid">
               <div>
-                <h2>Objavi zadatak</h2>
-                <p>Reci pomagačima šta trebaš.</p>
+                <div className="badge">
+                  🇧🇦 {t.heroBadge}
+                </div>
+
+                <h1>
+                  {t.heroTitle1}
+                  <br />
+                  {t.heroTitle2}
+                </h1>
+
+                <p className="hero-copy">{t.heroText}</p>
+
+                <div className="hero-buttons">
+                  <button
+                    className="btn btn-dark"
+                    onClick={openPostTask}
+                  >
+                    {t.needHelp}
+                  </button>
+
+                  <button
+                    className="btn"
+                    onClick={() => navigate("jobs")}
+                  >
+                    {t.earn}
+                  </button>
+                </div>
+
+                <div className="search-box">
+                  <input
+                    value={search}
+                    onChange={(event) =>
+                      setSearch(event.target.value)
+                    }
+                    onFocus={() => setView("jobs")}
+                    placeholder={t.searchHelp}
+                  />
+
+                  <select
+                    value={cityFilter}
+                    onChange={(event) =>
+                      setCityFilter(event.target.value)
+                    }
+                  >
+                    <option value="all">{t.allBiH}</option>
+
+                    {cities.map((city) => (
+                      <option key={city} value={city}>
+                        {city}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="hero-panel">
+                <div>
+                  <div className="hero-panel-small">
+                    {language === "en"
+                      ? "Available right now"
+                      : "Dostupno trenutno"}
+                  </div>
+
+                  <div className="hero-panel-number">
+                    {visibleJobs.length}
+                  </div>
+
+                  <h3>{t.availableTasks}</h3>
+                </div>
+
+                <p>
+                  {language === "en"
+                    ? "Find a task near you, send an offer and agree directly with the customer."
+                    : "Pronađi zadatak u svojoj blizini, pošalji ponudu i dogovori posao sa naručiocem."}
+                </p>
+
+                <button
+                  className="btn btn-soft"
+                  onClick={() => navigate("jobs")}
+                >
+                  {t.jobs} →
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="section section-white">
+            <div className="container">
+              <div className="section-head">
+                <div>
+                  <h2>{t.categoriesTitle}</h2>
+                  <p>{t.categoriesText}</p>
+                </div>
+              </div>
+
+              <div className="category-grid">
+                {categories.map((category) => (
+                  <button
+                    className="category-card"
+                    key={category.name}
+                    onClick={() => {
+                      setCategoryFilter(category.name);
+                      navigate("jobs");
+                    }}
+                  >
+                    <span className="category-icon">
+                      {category.icon}
+                    </span>
+
+                    <span className="category-name">
+                      {categoryLabel(category.name)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="section">
+            <div className="container">
+              <div className="section-head">
+                <div>
+                  <h2>{t.currentJobs}</h2>
+                  <p>
+                    {visibleJobs.length} {t.availableTasks}
+                  </p>
+                </div>
+
+                <button
+                  className="btn"
+                  onClick={() => navigate("jobs")}
+                >
+                  {language === "en"
+                    ? "View all"
+                    : "Pogledaj sve"}
+                </button>
+              </div>
+
+              <div className="job-grid">
+                {visibleJobs.slice(0, 6).map((job) => (
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    t={t}
+                    language={language}
+                    categoryLabel={categoryLabel}
+                    statusLabel={statusLabel}
+                    onOpen={() => openJob(job)}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section
+            className="section section-white"
+            id="how"
+          >
+            <div className="container">
+              <div className="section-head">
+                <div>
+                  <h2>{t.howTitle}</h2>
+                  <p>{t.howText}</p>
+                </div>
+              </div>
+
+              <div className="how-grid">
+                <HowCard
+                  number="1"
+                  title={t.step1Title}
+                  text={t.step1Text}
+                />
+
+                <HowCard
+                  number="2"
+                  title={t.step2Title}
+                  text={t.step2Text}
+                />
+
+                <HowCard
+                  number="3"
+                  title={t.step3Title}
+                  text={t.step3Text}
+                />
+              </div>
+            </div>
+          </section>
+        </>
+      )}
+
+      {view === "jobs" && (
+        <section className="dashboard">
+          <div className="container">
+            <div className="dashboard-head">
+              <h1>{t.currentJobs}</h1>
+
+              <p>
+                {language === "en"
+                  ? "Find work and send your offer."
+                  : "Pronađi posao i pošalji svoju ponudu."}
+              </p>
+            </div>
+
+            <div className="jobs-toolbar">
+              <input
+                value={search}
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
+                placeholder={t.searchJobs}
+              />
+
+              <select
+                value={cityFilter}
+                onChange={(event) =>
+                  setCityFilter(event.target.value)
+                }
+              >
+                <option value="all">{t.allBiH}</option>
+
+                {cities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={categoryFilter}
+                onChange={(event) =>
+                  setCategoryFilter(event.target.value)
+                }
+              >
+                <option value="all">
+                  {language === "en"
+                    ? "All categories"
+                    : "Sve kategorije"}
+                </option>
+
+                {categories.map((category) => (
+                  <option
+                    key={category.name}
+                    value={category.name}
+                  >
+                    {categoryLabel(category.name)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {visibleJobs.length ? (
+              <div className="job-grid">
+                {visibleJobs.map((job) => (
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    t={t}
+                    language={language}
+                    categoryLabel={categoryLabel}
+                    statusLabel={statusLabel}
+                    onOpen={() => openJob(job)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="empty">{t.noJobs}</div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {view === "myTasks" && (
+        <section className="dashboard">
+          <div className="container">
+            <div className="section-head">
+              <div className="dashboard-head">
+                <h1>{t.myTasks}</h1>
+                <p>
+                  {language === "en"
+                    ? "Your tasks, offers and current status."
+                    : "Tvoji zadaci, ponude i trenutni status."}
+                </p>
               </div>
 
               <button
-                type="button"
-                className="close"
-                onClick={() => setShowJobForm(false)}
+                className="btn btn-dark"
+                onClick={openPostTask}
+              >
+                + {t.postTask}
+              </button>
+            </div>
+
+            {!user ? (
+              <div className="empty">
+                <button
+                  className="btn btn-dark"
+                  onClick={() => setAuthOpen(true)}
+                >
+                  {t.login}
+                </button>
+              </div>
+            ) : myTasks.length ? (
+              <div className="dashboard-grid">
+                {myTasks.map((job) => {
+                  const applications =
+                    applicationsByJob[job.id] || [];
+
+                  return (
+                    <div className="crm-card" key={job.id}>
+                      <div className="crm-card-head">
+                        <div>
+                          <h3>{job.title}</h3>
+
+                          <div className="crm-meta">
+                            <span className="crm-pill">
+                              📍 {job.city}
+                            </span>
+
+                            <span className="crm-pill">
+                              {categoryLabel(job.category)}
+                            </span>
+
+                            <span className="crm-pill">
+                              {statusLabel(job.status)}
+                            </span>
+
+                            <span className="crm-pill">
+                              {applications.length}{" "}
+                              {t.applications}
+                            </span>
+                          </div>
+                        </div>
+
+                        <strong className="price">
+                          {formatPrice(job.price)}
+                        </strong>
+                      </div>
+
+                      <p>{job.description}</p>
+
+                      {normalizeStatus(job.status) ===
+                        "assigned" && (
+                        <button
+                          className="btn"
+                          disabled={actionLoading}
+                          onClick={() =>
+                            updateJobStatus(
+                              job,
+                              "in_progress"
+                            )
+                          }
+                        >
+                          {t.startJob}
+                        </button>
+                      )}
+
+                      {normalizeStatus(job.status) ===
+                        "in_progress" && (
+                        <button
+                          className="btn btn-dark"
+                          disabled={actionLoading}
+                          onClick={() =>
+                            updateJobStatus(job, "completed")
+                          }
+                        >
+                          {t.finishJob}
+                        </button>
+                      )}
+
+                      {applications.length > 0 && (
+                        <div className="applications">
+                          <h4>{t.offers}</h4>
+
+                          {applications.map((application) => (
+                            <div
+                              className="application"
+                              key={application.id}
+                            >
+                              <div>
+                                <strong>
+                                  {language === "en"
+                                    ? "Helper offer"
+                                    : "Ponuda pomagača"}
+                                </strong>
+
+                                <p>
+                                  {application.message ||
+                                    (language === "en"
+                                      ? "No message"
+                                      : "Bez poruke")}
+                                </p>
+
+                                <div className="crm-meta">
+                                  <span className="crm-pill">
+                                    {formatPrice(
+                                      application.offered_price
+                                    )}
+                                  </span>
+
+                                  <span className="crm-pill">
+                                    {applicationStatusLabel(
+                                      application.status
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {normalizeStatus(job.status) ===
+                                "open" &&
+                                application.status !==
+                                  "rejected" && (
+                                  <button
+                                    className="btn btn-dark"
+                                    disabled={actionLoading}
+                                    onClick={() =>
+                                      chooseHelper(
+                                        job,
+                                        application
+                                      )
+                                    }
+                                  >
+                                    {t.chooseHelper}
+                                  </button>
+                                )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {normalizeStatus(job.status) ===
+                        "completed" &&
+                        job.selected_helper_id && (
+                          <div className="review-box">
+                            <h4>{t.review}</h4>
+
+                            <div className="two-fields">
+                              <label className="field">
+                                {language === "en"
+                                  ? "Rating"
+                                  : "Ocjena"}
+
+                                <select
+                                  value={reviewForm.rating}
+                                  onChange={(event) =>
+                                    setReviewForm((current) => ({
+                                      ...current,
+                                      rating:
+                                        event.target.value,
+                                    }))
+                                  }
+                                >
+                                  <option value="5">
+                                    ⭐⭐⭐⭐⭐
+                                  </option>
+                                  <option value="4">
+                                    ⭐⭐⭐⭐
+                                  </option>
+                                  <option value="3">
+                                    ⭐⭐⭐
+                                  </option>
+                                  <option value="2">
+                                    ⭐⭐
+                                  </option>
+                                  <option value="1">⭐</option>
+                                </select>
+                              </label>
+
+                              <label className="field">
+                                {t.message}
+
+                                <input
+                                  value={reviewForm.comment}
+                                  onChange={(event) =>
+                                    setReviewForm((current) => ({
+                                      ...current,
+                                      comment:
+                                        event.target.value,
+                                    }))
+                                  }
+                                  placeholder={t.reviewText}
+                                />
+                              </label>
+                            </div>
+
+                            <button
+                              className="btn"
+                              disabled={actionLoading}
+                              onClick={() => submitReview(job)}
+                            >
+                              {t.review}
+                            </button>
+                          </div>
+                        )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="empty">
+                <p>{t.noTasks}</p>
+
+                <button
+                  className="btn btn-dark"
+                  onClick={openPostTask}
+                >
+                  {t.postTask}
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {view === "myJobs" && (
+        <section className="dashboard">
+          <div className="container">
+            <div className="dashboard-head">
+              <h1>{t.myJobs}</h1>
+
+              <p>
+                {language === "en"
+                  ? "Offers you've sent and jobs you've been selected for."
+                  : "Ponude koje si poslao i poslovi za koje si izabran."}
+              </p>
+            </div>
+
+            {!user ? (
+              <div className="empty">
+                <button
+                  className="btn btn-dark"
+                  onClick={() => setAuthOpen(true)}
+                >
+                  {t.login}
+                </button>
+              </div>
+            ) : helperJobs.length ? (
+              <div className="dashboard-grid">
+                {helperJobs.map((job) => {
+                  const application = myApplications.find(
+                    (item) => item.job_id === job.id
+                  );
+
+                  return (
+                    <div className="crm-card" key={job.id}>
+                      <div className="crm-card-head">
+                        <div>
+                          <h3>{job.title}</h3>
+
+                          <div className="crm-meta">
+                            <span className="crm-pill">
+                              📍 {job.city}
+                            </span>
+
+                            <span className="crm-pill">
+                              {statusLabel(job.status)}
+                            </span>
+
+                            {application && (
+                              <span className="crm-pill">
+                                {applicationStatusLabel(
+                                  application.status
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <strong className="price">
+                          {formatPrice(
+                            application?.offered_price ??
+                              job.price
+                          )}
+                        </strong>
+                      </div>
+
+                      <p>{job.description}</p>
+
+                      {job.selected_helper_id === user.id &&
+                        normalizeStatus(job.status) ===
+                          "assigned" && (
+                          <button
+                            className="btn btn-dark"
+                            disabled={actionLoading}
+                            onClick={() =>
+                              updateJobStatus(
+                                job,
+                                "in_progress"
+                              )
+                            }
+                          >
+                            {t.startJob}
+                          </button>
+                        )}
+
+                      {job.selected_helper_id === user.id &&
+                        normalizeStatus(job.status) ===
+                          "in_progress" && (
+                          <button
+                            className="btn btn-dark"
+                            disabled={actionLoading}
+                            onClick={() =>
+                              updateJobStatus(
+                                job,
+                                "completed"
+                              )
+                            }
+                          >
+                            {t.finishJob}
+                          </button>
+                        )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="empty">
+                <p>{t.noHelperJobs}</p>
+
+                <button
+                  className="btn btn-dark"
+                  onClick={() => navigate("jobs")}
+                >
+                  {t.jobs}
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {view === "profile" && (
+        <section className="dashboard">
+          <div className="container">
+            <div className="dashboard-head">
+              <h1>{t.profileTitle}</h1>
+
+              <p>
+                {language === "en"
+                  ? "Manage your Sredi profile."
+                  : "Upravljaj svojim Sredi profilom."}
+              </p>
+            </div>
+
+            {user && (
+              <form
+                className="profile-form"
+                onSubmit={saveProfile}
+              >
+                <label className="field">
+                  {t.fullName}
+
+                  <input
+                    value={profileForm.full_name}
+                    onChange={(event) =>
+                      setProfileForm((current) => ({
+                        ...current,
+                        full_name: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
+
+                <label className="field">
+                  Email
+                  <input value={user.email || ""} disabled />
+                </label>
+
+                <div className="two-fields">
+                  <label className="field">
+                    {t.city}
+
+                    <input
+                      value={profileForm.city}
+                      onChange={(event) =>
+                        setProfileForm((current) => ({
+                          ...current,
+                          city: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="field">
+                    {t.phone}
+
+                    <input
+                      value={profileForm.phone}
+                      onChange={(event) =>
+                        setProfileForm((current) => ({
+                          ...current,
+                          phone: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+
+                <label className="field">
+                  {t.bio}
+
+                  <textarea
+                    value={profileForm.bio}
+                    onChange={(event) =>
+                      setProfileForm((current) => ({
+                        ...current,
+                        bio: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={profileForm.is_helper}
+                    onChange={(event) =>
+                      setProfileForm((current) => ({
+                        ...current,
+                        is_helper: event.target.checked,
+                      }))
+                    }
+                  />
+
+                  {language === "en"
+                    ? "I want to work as a helper"
+                    : "Želim raditi kao pomagač"}
+                </label>
+
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={profileForm.can_post_jobs}
+                    onChange={(event) =>
+                      setProfileForm((current) => ({
+                        ...current,
+                        can_post_jobs: event.target.checked,
+                      }))
+                    }
+                  />
+
+                  {language === "en"
+                    ? "I want to be able to post tasks"
+                    : "Želim moći objavljivati zadatke"}
+                </label>
+
+                <label className="field">
+                  {language === "en" ? "Language" : "Jezik"}
+
+                  <select
+                    value={language}
+                    onChange={(event) =>
+                      changeLanguage(event.target.value)
+                    }
+                  >
+                    <option value="bs">Bosanski</option>
+                    <option value="en">English</option>
+                  </select>
+                </label>
+
+                <button
+                  className="btn btn-dark"
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? t.loading : t.save}
+                </button>
+              </form>
+            )}
+          </div>
+        </section>
+      )}
+
+      <footer className="footer">
+        <div className="container footer-inner">
+          <strong>SREDI.ba</strong>
+          <span>
+            {language === "en"
+              ? "Help. Work. Get it done."
+              : "Pomoć. Posao. Sredi."}
+          </span>
+        </div>
+      </footer>
+
+      {authOpen && (
+        <AuthModal
+          onClose={() => setAuthOpen(false)}
+          onAuthSuccess={async (authUser) => {
+            setUser(authUser);
+            await loadProfile(authUser);
+            await loadJobs();
+            setAuthOpen(false);
+          }}
+        />
+      )}
+
+      {postOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setPostOpen(false)}
+        >
+          <div
+            className="v2-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-head-v2">
+              <div>
+                <h2>{t.postTask}</h2>
+
+                <p>
+                  {language === "en"
+                    ? "Tell helpers what you need."
+                    : "Opiši pomagačima šta trebaš."}
+                </p>
+              </div>
+
+              <button
+                className="modal-close"
+                onClick={() => setPostOpen(false)}
               >
                 ×
               </button>
             </div>
 
             <form
-              className="form"
-              onSubmit={handleJobContinue}
+              className="modal-form"
+              onSubmit={handleCreateJob}
             >
-              <label>
-                Naziv zadatka
+              <label className="field">
+                {t.title}
+
                 <input
-                  name="title"
                   value={jobForm.title}
-                  onChange={handleJobFormChange}
-                  placeholder="Npr. montaža ormara"
+                  onChange={(event) =>
+                    setJobForm((current) => ({
+                      ...current,
+                      title: event.target.value,
+                    }))
+                  }
                   required
                 />
               </label>
 
-              <label>
-                Kategorija
-                <select
-                  name="category"
-                  value={jobForm.category}
-                  onChange={handleJobFormChange}
-                  required
-                >
-                  <option value="">
-                    Odaberi kategoriju
-                  </option>
+              <label className="field">
+                {t.description}
 
-                  {categories.map((item) => (
-                    <option
-                      value={item.name}
-                      key={item.name}
-                    >
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Grad
-                <input
-                  name="city"
-                  value={jobForm.city}
-                  onChange={handleJobFormChange}
-                  placeholder="Npr. Sarajevo"
-                  required
-                />
-              </label>
-
-              <label>
-                Budžet
-                <input
-                  name="budget"
-                  type="number"
-                  min="1"
-                  value={jobForm.budget}
-                  onChange={handleJobFormChange}
-                  placeholder="KM"
-                  required
-                />
-              </label>
-
-              <label>
-                Opis zadatka
                 <textarea
-                  name="description"
                   value={jobForm.description}
-                  onChange={handleJobFormChange}
-                  placeholder="Opiši šta treba uraditi..."
+                  onChange={(event) =>
+                    setJobForm((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
                   required
+                />
+              </label>
+
+              <div className="two-fields">
+                <label className="field">
+                  {t.category}
+
+                  <select
+                    value={jobForm.category}
+                    onChange={(event) =>
+                      setJobForm((current) => ({
+                        ...current,
+                        category: event.target.value,
+                      }))
+                    }
+                  >
+                    {categories.map((category) => (
+                      <option
+                        key={category.name}
+                        value={category.name}
+                      >
+                        {categoryLabel(category.name)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field">
+                  {t.city}
+
+                  <input
+                    value={jobForm.city}
+                    onChange={(event) =>
+                      setJobForm((current) => ({
+                        ...current,
+                        city: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
+              </div>
+
+              <label className="field">
+                {t.budget} (KM)
+
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={jobForm.price}
+                  onChange={(event) =>
+                    setJobForm((current) => ({
+                      ...current,
+                      price: event.target.value,
+                    }))
+                  }
                 />
               </label>
 
               <button
-                type="submit"
-                className="btn btn-dark btn-wide"
+                className="btn btn-dark"
+                disabled={actionLoading}
               >
-                Objavi zadatak
+                {actionLoading ? t.loading : t.postTask}
               </button>
             </form>
           </div>
@@ -1889,286 +2777,188 @@ export default function Home() {
 
       {selectedJob && (
         <div
-          className="modal"
+          className="modal-backdrop"
           onClick={() => setSelectedJob(null)}
         >
           <div
-            className="modal-card"
+            className="v2-modal modal-large"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="modal-head">
+            <div className="modal-head-v2">
               <div>
-                <h2>{selectedJob.title}</h2>
+                <span className="status">
+                  {selectedJob.demo
+                    ? language === "en"
+                      ? "Example"
+                      : "Primjer"
+                    : statusLabel(selectedJob.status)}
+                </span>
+
+                <h2 style={{ marginTop: 12 }}>
+                  {selectedJob.title}
+                </h2>
 
                 <p>
                   📍 {selectedJob.city} ·{" "}
-                  {selectedJob.category}
+                  {categoryLabel(selectedJob.category)}
                 </p>
               </div>
 
               <button
-                type="button"
-                className="close"
+                className="modal-close"
                 onClick={() => setSelectedJob(null)}
               >
                 ×
               </button>
             </div>
 
-            <p>{selectedJob.description}</p>
-
-            <div className="job-modal-price">
-              {selectedJob.price} KM
+            <div className="detail-price">
+              {formatPrice(selectedJob.price)}
             </div>
 
-            <p className="job-owner">
-              Objavio: {selectedJob.owner}
+            <p className="detail-description">
+              {selectedJob.description}
             </p>
 
-            <div className="form">
-              <textarea
-                placeholder="Napiši kratku poruku osobi koja je objavila zadatak..."
-              />
-
-              <button
-                className="btn btn-dark"
-                onClick={() => handleApply(selectedJob)}
-              >
-                Javi se za zadatak
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedHelper && (
-        <div
-          className="modal"
-          onClick={() => setSelectedHelper(null)}
-        >
-          <div
-            className="modal-card"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="modal-head">
-              <div>
-                <h2>{selectedHelper.name}</h2>
-                <p>📍 {selectedHelper.city}</p>
+            {selectedJob.demo ? (
+              <div className="notice-global">
+                {language === "en"
+                  ? "This is an example task. Real user tasks can receive offers."
+                  : "Ovo je primjer zadatka. Na stvarne zadatke korisnici mogu slati ponude."}
               </div>
-
-              <button
-                type="button"
-                className="close"
-                onClick={() => setSelectedHelper(null)}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="profile-hero">
-              <div className="profile-avatar">
-                {selectedHelper.initials}
+            ) : selectedJob.owner_id === user?.id ? (
+              <div className="notice-global">
+                {language === "en"
+                  ? "This is your task. Manage offers under My tasks."
+                  : "Ovo je tvoj zadatak. Ponudama upravljaš pod Moji zadaci."}
               </div>
-
-              <div>
-                <strong>{selectedHelper.name}</strong>
-                <div className="helper-city">
-                  Pomagač na Sredi
-                </div>
-              </div>
-            </div>
-
-            <div className="profile-rating">
-              <div>
-                <strong className="rating">
-                  ★ {selectedHelper.rating.toFixed(1)}
-                </strong>
-
-                <span>
-                  {selectedHelper.reviewCount} ocjena
-                </span>
-              </div>
-
-              <div>
-                <strong>
-                  {selectedHelper.completedJobs}
-                </strong>
-
-                <span>završenih poslova</span>
-              </div>
-            </div>
-
-            <p>{selectedHelper.bio}</p>
-
-            <div className="tags">
-              {selectedHelper.skills.map((skill) => (
-                <span className="tag" key={skill}>
-                  {skill}
-                </span>
-              ))}
-            </div>
-
-            <div className="rating-explanation">
-              Ocjene se prikazuju samo na profilima pomagača.
-              Nakon završenog zadatka osoba koja je objavila
-              zadatak može ocijeniti izabranog pomagača.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showMyProfile && user && (
-        <div
-          className="modal"
-          onClick={() => setShowMyProfile(false)}
-        >
-          <div
-            className="modal-card modal-card-large"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="modal-head">
-              <div>
-                <h2>Moj profil</h2>
-                <p>Tvoj Sredi profil</p>
-              </div>
-
-              <button
-                type="button"
-                className="close"
-                onClick={() => setShowMyProfile(false)}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="profile-hero">
-              <div className="profile-avatar">
-                {getInitials(userName)}
-              </div>
-
-              <div>
-                <strong>{userName}</strong>
-
-                <div className="profile-role">
-                  {isHelper ? "Pomagač" : "Tražim pomoć"}
-                </div>
-
-                <p className="profile-email">
-                  {user.email}
-                </p>
-              </div>
-            </div>
-
-            {isHelper ? (
-              <>
-                <div className="profile-rating">
-                  <div>
-                    <strong className="rating">
-                      ★ —
-                    </strong>
-                    <span>0 ocjena</span>
-                  </div>
-
-                  <div>
-                    <strong>0</strong>
-                    <span>završenih poslova</span>
-                  </div>
-                </div>
-
-                <div className="rating-explanation">
-                  Ovo je profil pomagača. Rating će se računati
-                  iz ocjena koje dobiješ nakon završenih
-                  zadataka. Novi profil počinje bez ocjena i sa
-                  0 završenih poslova.
-                </div>
-              </>
             ) : (
-              <div className="dashboard-box">
-                <h3>Tražim pomoć</h3>
-                <p>
-                  Ovaj profil služi za objavljivanje zadataka i
-                  pronalazak pomagača. Rating se ne prikazuje na
-                  profilima osoba koje traže pomoć.
-                </p>
-              </div>
+              <form
+                className="modal-form"
+                onSubmit={(event) => {
+                  if (!user) {
+                    event.preventDefault();
+                    setSelectedJob(null);
+                    setAuthOpen(true);
+                    return;
+                  }
+
+                  handleApply(event);
+                }}
+              >
+                <h3>{t.sendOffer}</h3>
+
+                <label className="field">
+                  {t.message}
+
+                  <textarea
+                    value={applicationForm.message}
+                    onChange={(event) =>
+                      setApplicationForm((current) => ({
+                        ...current,
+                        message: event.target.value,
+                      }))
+                    }
+                    placeholder={
+                      language === "en"
+                        ? "Tell the customer why you're a good fit..."
+                        : "Napiši kratko zašto možeš pomoći..."
+                    }
+                  />
+                </label>
+
+                <label className="field">
+                  {t.offer} (KM)
+
+                  <input
+                    type="number"
+                    min="0"
+                    value={applicationForm.offeredPrice}
+                    onChange={(event) =>
+                      setApplicationForm((current) => ({
+                        ...current,
+                        offeredPrice: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+
+                <button
+                  className="btn btn-dark"
+                  disabled={actionLoading}
+                >
+                  {user
+                    ? actionLoading
+                      ? t.loading
+                      : t.sendOffer
+                    : t.login}
+                </button>
+              </form>
             )}
           </div>
         </div>
       )}
-
-      {showMyJobs && user && (
-        <div
-          className="modal"
-          onClick={() => setShowMyJobs(false)}
-        >
-          <div
-            className="modal-card modal-card-large"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="modal-head">
-              <div>
-                <h2>
-                  {isHelper ? "Moji poslovi" : "Moji zadaci"}
-                </h2>
-
-                <p>
-                  {isHelper
-                    ? "Poslovi na koje si se prijavio i koje si završio."
-                    : "Zadaci koje si objavio na Sredi."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="close"
-                onClick={() => setShowMyJobs(false)}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="dashboard-box">
-              <h3>
-                {isHelper
-                  ? "Još nema poslova"
-                  : "Još nema zadataka"}
-              </h3>
-
-              <p>
-                {isHelper
-                  ? "Kada povežemo prijave sa bazom, ovdje ćeš vidjeti svoje aktivne i završene poslove."
-                  : "Kada povežemo objavljivanje sa bazom, ovdje ćeš vidjeti svoje aktivne i završene zadatke."}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showAuth && (
-        <AuthModal
-          onClose={() => {
-            setShowAuth(false);
-            setNotice("");
-          }}
-          onAuthSuccess={handleAuthSuccess}
-        />
-      )}
-
-      {notice && !showAuth && (
-        <div className="floating-notice">
-          <div className="notice">
-            {notice}
-          </div>
-        </div>
-      )}
-
-      {showAuth && notice && (
-        <div className="floating-notice">
-          <div className="notice">
-            {notice}
-          </div>
-        </div>
-      )}
     </main>
+  );
+}
+
+function JobCard({
+  job,
+  t,
+  language,
+  categoryLabel,
+  statusLabel,
+  onOpen,
+}) {
+  return (
+    <article className="job-card">
+      <div className="job-card-top">
+        <div className="job-icon">
+          {job.icon || getCategoryIcon(job.category)}
+        </div>
+
+        <div className="price">
+          {formatPrice(job.price)}
+        </div>
+      </div>
+
+      <h3>{job.title}</h3>
+
+      <div className="job-meta">
+        📍 {job.city} · {categoryLabel(job.category)}
+      </div>
+
+      <div className="job-description">
+        {job.description}
+      </div>
+
+      <div className="job-card-bottom">
+        <span
+          className={`status ${
+            job.demo ? "demo-badge" : ""
+          }`}
+        >
+          {job.demo
+            ? language === "en"
+              ? "Example"
+              : "Primjer"
+            : statusLabel(job.status)}
+        </span>
+
+        <button className="btn" onClick={onOpen}>
+          {t.interested}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function HowCard({ number, title, text }) {
+  return (
+    <div className="how-card">
+      <div className="step-number">{number}</div>
+      <h3>{title}</h3>
+      <p>{text}</p>
+    </div>
   );
 }
