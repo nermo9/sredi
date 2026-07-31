@@ -7,6 +7,7 @@ export default function V2Topbar({
   profile,
   onLogin,
   onProfile,
+  onLogout,
   notificationCount = 0,
 }) {
   const initials =
@@ -67,18 +68,30 @@ export default function V2Topbar({
         )}
 
         {user ? (
-          <button
-            type="button"
-            className="v2-user-button"
-            onClick={onProfile}
-          >
-            <span className="v2-avatar">{initials}</span>
+  <>
+    <button
+      type="button"
+      className="v2-user-button"
+      onClick={onProfile}
+    >
+      <span className="v2-avatar">
+        {initials}
+      </span>
 
-            <span className="v2-user-name">
-              {profile?.full_name || "Profile"}
-            </span>
-          </button>
-        ) : (
+      <span className="v2-user-name">
+        {profile?.full_name || "Profile"}
+      </span>
+    </button>
+
+    <button
+      type="button"
+      className="v2-login-button"
+      onClick={onLogout}
+    >
+      Log out
+    </button>
+  </>
+) : (
           <button
             type="button"
             className="v2-login-button"
