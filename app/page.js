@@ -580,40 +580,59 @@ const helperLevel = useMemo(
   }
 
   async function loadMyReviews() {
-    if (!user) return;
+  if (!user) return;
 
-    const ownedIds = jobs
-      .filter((job) => job.owner_id === user.id)
-      .map((job) => job.id);
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("*")
+    .eq("reviewer_id", user.id)
+    .order("created_at", { ascending: false });
 
-    if (!ownedIds.length) {
-      setApplicationsByJob({});
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("applications")
-      .select("*")
-      .in("job_id", ownedIds)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Owned applications error:", error);
-      return;
-    }
-
-    const grouped = {};
-
-    for (const application of data || []) {
-      if (!grouped[application.job_id]) {
-        grouped[application.job_id] = [];
-      }
-
-      grouped[application.job_id].push(application);
-    }
-
-    setApplicationsByJob(grouped);
+  if (error) {
+    console.error("Reviews error:", error);
+    return;
   }
+
+  setMyReviews(data || []);
+}
+
+async function loadApplicationsForOwnedJobs() {
+  if (!user) return;
+
+  const ownedIds = jobs
+    .filter((job) => job.owner_id === user.id)
+    .map((job) => job.id);
+
+  if (!ownedIds.length) {
+    setApplicationsByJob({});
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("applications")
+    .select("*")
+    .in("job_id", ownedIds)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Owned applications error:", error);
+    return;
+  }
+
+  const grouped = {};
+
+  for (const application of data || []) {
+    if (!grouped[application.job_id]) {
+      grouped[application.job_id] = [];
+    }
+
+    grouped[application.job_id].push(application);
+  }
+
+  setApplicationsByJob(grouped);
+}
+
+  
   async function loadHelperReviews(currentUser = user) {
   if (!currentUser) return;
 
