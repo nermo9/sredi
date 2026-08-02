@@ -859,13 +859,18 @@ async function chooseHelper(job, application) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        amount: application.offered_price || job.price,
-        stripeAccountId: application.stripe_account_id,
-        jobId: job.id,
-        applicationId: application.id,
-      }),
-    });
+    const { data: helperProfile } = await supabase
+  .from("profiles")
+  .select("stripe_account_id")
+  .eq("id", application.helper_id)
+  .single();
+
+body: JSON.stringify({
+  amount: application.offered_price || job.price,
+  stripeAccountId: helperProfile.stripe_account_id,
+  jobId: job.id,
+  applicationId: application.id,
+}),
 
     const data = await response.json();
 
