@@ -349,6 +349,7 @@ export default function Home() {
   const [profile, setProfile] = useState(null);
 
   const [authOpen, setAuthOpen] = useState(false);
+  const [postTaskOpen, setPostTaskOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   const [view, setView] = useState("home");
@@ -2226,13 +2227,12 @@ try {
 />
         <div className="v2-content">
           {view === "home" && (
-            <V2Hero
-              language={language === "bs" ? "ba" : "en"}
-              onPostTask={openPostTask}
-              onFindJob={() => navigate("jobs")}
-            />
-          )}
-
+           <V2Hero
+  language={language === "bs" ? "ba" : "en"}
+  onPostTask={openPostTask}
+  onFindJob={() => navigate("jobs")}
+/>
+)}
       <header className="topbar">
         <nav className="nav">
           <button
@@ -3210,17 +3210,76 @@ try {
                     : "Želim moći objavljivati zadatke"}
                 </label>
 
-                <div>
-                  <button
-                    className="btn btn-dark"
-                    type="submit"
-                    disabled={actionLoading}
-                  >
-                    {language === "en"
-                      ? "Save profile"
-                      : "Sačuvaj profil"}
-                  </button>
-                </div>
+  {profileForm.is_helper && !profile?.stripe_connected && (
+    <div style={{ marginBottom: 20 }}>
+      <button
+        type="button"
+        className="btn"
+        onClick={async () => {
+          try {
+            const response = await fetch("/api/stripe/connect", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                userId: user.id,
+              }),
+            });
+
+            const data = await response.json();
+
+if (data.error) {
+  alert(data.error);
+  return;
+}
+
+// Gem Stripe-kontoen på brugerens profil
+await supabase
+  .from("profiles")
+  .update({
+    stripe_account_id: data.accountId,
+    stripe_connected: true,
+  })
+  .eq("id", user.id);
+
+// Send brugeren til Stripe
+window.location.href = data.url;
+          } catch (err) {
+            console.error(err);
+            alert("Could not connect to Stripe.");
+          }
+        }}
+      >
+        💳 Connect Stripe
+      </button>
+    </div>
+  )}
+  {profile?.stripe_connected && (
+  <div
+    style={{
+      marginBottom: 20,
+      padding: 12,
+      background: "#e8f8ee",
+      color: "#15803d",
+      borderRadius: 8,
+      fontWeight: 600,
+    }}
+  >
+    ✅ Stripe connected
+  </div>
+)}
+<div>
+  <button
+    className="btn btn-dark"
+    type="submit"
+    disabled={actionLoading}
+  >
+    {language === "en"
+      ? "Save profile"
+      : "Sačuvaj profil"}
+  </button>
+</div>
               </form>
 )}
 {profile?.is_helper && (
@@ -3654,7 +3713,19 @@ try {
             <p className="detail-description">
               {selectedJob.description}
             </p>
-
+{Array.isArray(selectedJob.image_urls) &&
+  selectedJob.image_urls.length > 0 && (
+    <div className="job-image-gallery">
+      {selectedJob.image_urls.map((url, index) => (
+        <img
+          key={index}
+          src={String(url)}
+          alt={`Task ${index + 1}`}
+          className="job-image"
+        />
+      ))}
+    </div>
+)}
             {selectedJob.demo ? (
               <div className="notice-global">
                 {language === "en"
