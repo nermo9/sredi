@@ -2751,12 +2751,14 @@ body: JSON.stringify({
                                   <button
                                     className="btn btn-dark"
                                     disabled={actionLoading}
-                                    onClick={() =>
-                                      chooseHelper(
-                                        job,
-                                        application
-                                      )
-                                    }
+                                    onClick={() => {
+  alert(JSON.stringify(application));
+
+  chooseHelper(
+    job,
+    application
+  );
+}}
                                   >
                                     {language === "en"
                                       ? "Choose helper"
