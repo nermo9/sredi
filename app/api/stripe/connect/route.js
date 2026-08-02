@@ -22,11 +22,8 @@ export async function POST(request) {
 
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-
-      refresh_url: "http://localhost:3001?view=profile&stripe=refresh",
-
-      return_url: "http://localhost:3001?view=profile&stripe=success",
-
+      refresh_url: "https://www.sredi.ba?view=profile&stripe=refresh",
+      return_url: "https://www.sredi.ba?view=profile&stripe=success",
       type: "account_onboarding",
     });
 
@@ -35,11 +32,19 @@ export async function POST(request) {
       url: accountLink.url,
     });
   } catch (err) {
-    console.error(err);
+    console.error("========== STRIPE ERROR ==========");
+    console.error("Message:", err.message);
+    console.error("Type:", err.type);
+    console.error("Code:", err.code);
+    console.error("Raw:", err.raw);
+    console.error("Full error:", err);
 
     return NextResponse.json(
       {
         error: err.message,
+        type: err.type,
+        code: err.code,
+        raw: err.raw,
       },
       {
         status: 500,
