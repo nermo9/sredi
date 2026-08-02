@@ -846,57 +846,39 @@ try {
     );
   }
 
-  async function chooseHelper(job, application) {
-    if (!user || job.owner_id !== user.id) return;
+async function chooseHelper(job, application) {
+  if (!user || job.owner_id !== user.id) return;
 
-    setActionLoading(true);
-    setNotice("");
+  setActionLoading(true);
+  setNotice("");
 
-    const { error: jobError } = await supabase
-      .from("jobs")
-      .update({
-        selected_helper_id: application.helper_id,
-        status: "assigned",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", job.id)
-      .eq("owner_id", user.id);
+  try {
+    const response = await fetch("/api/stripe/checkout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        jobId: job.id,
+        helperId: application.helper_id,
+      }),
+    });
 
-    if (jobError) {
+    const data = await response.json();
+
+    if (!response.ok) {
       setActionLoading(false);
-      setNotice(jobError.message);
+      setNotice(data.error || "Stripe error");
       return;
     }
 
-    const { error: acceptedError } = await supabase
-      .from("applications")
-      .update({ status: "accepted" })
-      .eq("id", application.id);
-
-    if (acceptedError) {
-      setActionLoading(false);
-      setNotice(acceptedError.message);
-      return;
-    }
-
-    await supabase
-      .from("applications")
-      .update({ status: "rejected" })
-      .eq("job_id", job.id)
-      .neq("id", application.id);
-
-    await loadJobs();
-    await loadMyApplications();
-    await loadApplicationsForOwnedJobs();
-
+    window.location.href = data.url;
+  } catch (err) {
+    console.error(err);
     setActionLoading(false);
-
-    setNotice(
-      language === "en"
-        ? "Helper selected."
-        : "Pomagač je izabran."
-    );
+    setNotice(err.message);
   }
+}
 
   async function updateJobStatus(job, status) {
     if (!user) return;
