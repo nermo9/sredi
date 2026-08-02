@@ -859,24 +859,24 @@ async function chooseHelper(job, application) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        amount: application.offered_price || job.price,
+        stripeAccountId: application.stripe_account_id,
         jobId: job.id,
-        helperId: application.helper_id,
+        applicationId: application.id,
       }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      setActionLoading(false);
-      setNotice(data.error || "Stripe error");
-      return;
+      throw new Error(data.error);
     }
 
     window.location.href = data.url;
   } catch (err) {
     console.error(err);
-    setActionLoading(false);
     setNotice(err.message);
+    setActionLoading(false);
   }
 }
 
