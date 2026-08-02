@@ -854,24 +854,26 @@ async function chooseHelper(job, application) {
 
   try {
     console.log("Application:", application);
-    const response = await fetch("/api/stripe/checkout", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+
     const { data: helperProfile } = await supabase
   .from("profiles")
   .select("stripe_account_id")
   .eq("id", application.helper_id)
   .single();
 
+    const response = await fetch("/api/stripe/checkout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+
 body: JSON.stringify({
   amount: application.offered_price || job.price,
   stripeAccountId: helperProfile.stripe_account_id,
   jobId: job.id,
   applicationId: application.id,
-}),
-
+  }),
+  });
     const data = await response.json();
 
     if (!response.ok) {
