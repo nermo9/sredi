@@ -860,6 +860,8 @@ async function chooseHelper(job, application) {
   .select("stripe_account_id")
   .eq("id", application.helper_id)
   .single();
+  console.log("Helper profile:", helperProfile);
+console.log("Helper ID:", application.helper_id);
 
     const response = await fetch("/api/stripe/checkout", {
       method: "POST",
