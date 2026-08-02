@@ -2756,7 +2756,6 @@ body: JSON.stringify({
                                     className="btn btn-dark"
                                     disabled={actionLoading}
                                     onClick={() => {
-  alert(JSON.stringify(application));
 
   chooseHelper(
     job,
