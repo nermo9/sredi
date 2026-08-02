@@ -853,6 +853,7 @@ async function chooseHelper(job, application) {
   setNotice("");
 
   try {
+    console.log("Application:", application);
     const response = await fetch("/api/stripe/checkout", {
       method: "POST",
       headers: {

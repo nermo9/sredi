@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+import { stripe } from "@/lib/stripe";
 
 export async function POST(request) {
   try {
@@ -12,6 +10,26 @@ export async function POST(request) {
       applicationId,
     } = await request.json();
 
+    console.log("Stripe key:", JSON.stringify(process.env.STRIPE_SECRET_KEY));
+    console.log("Stripe account:", stripeAccountId);
+
+    if (!amount) {
+      return NextResponse.json(
+        { error: "Missing amount." },
+        { status: 400 }
+      );
+    }
+
+    if (!stripeAccountId) {
+      return NextResponse.json(
+        { error: "Missing Stripe Account ID." },
+        { status: 400 }
+      );
+    }
+
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SITE_URL || "https://www.sredi.ba";
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
 
@@ -19,22 +37,25 @@ export async function POST(request) {
 
       line_items: [
         {
+          quantity: 1,
           price_data: {
             currency: "eur",
+            unit_amount: Math.round(Number(amount) * 100),
             product_data: {
               name: "Sredi Task",
             },
-            unit_amount: Math.round(Number(amount) * 100),
           },
-          quantity: 1,
         },
       ],
 
-      success_url: `http://localhost:3003/payment-success?job=${jobId}&application=${applicationId}`,
-      cancel_url: "http://localhost:3003/payment-cancel",
+      success_url: `${baseUrl}/payment-success?job=${jobId}&application=${applicationId}`,
+
+      cancel_url: `${baseUrl}/payment-cancel`,
 
       payment_intent_data: {
-        application_fee_amount: Math.round(Number(amount) * 100 * 0.1),
+        application_fee_amount: Math.round(
+          Number(amount) * 100 * 0.1
+        ),
 
         transfer_data: {
           destination: stripeAccountId,
@@ -50,8 +71,9 @@ export async function POST(request) {
     return NextResponse.json({
       url: session.url,
     });
+
   } catch (err) {
-    console.error(err);
+    console.error("Stripe checkout error:", err);
 
     return NextResponse.json(
       {
