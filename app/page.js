@@ -69,6 +69,9 @@ const helperLevel = useMemo(
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  // Kept separate from actionLoading so clicking "Connect Stripe" does not
+  // grey out unrelated buttons elsewhere on the profile view.
+  const [stripeConnectLoading, setStripeConnectLoading] = useState(false);
   const [notice, setNotice] = useState("");
 
   const [postOpen, setPostOpen] = useState(false);
@@ -2515,15 +2518,18 @@ try {
             </div>
 
             {!user ? (
-              <div className="empty">
-                <p>{t.loginRequired}</p>
-                <button
-                  className="btn btn-dark"
-                  onClick={() => setAuthOpen(true)}
-                >
-                  {t.login}
-                </button>
-              </div>
+              <EmptyState
+                icon="🔒"
+                title={t.loginRequired}
+                action={
+                  <button
+                    className="btn btn-dark"
+                    onClick={() => setAuthOpen(true)}
+                  >
+                    {t.login}
+                  </button>
+                }
+              />
             ) : myTasks.length ? (
               <div className="dashboard-grid">
                 {myTasks.map((job) => {
@@ -2622,19 +2628,24 @@ try {
                                   <button
                                     className="btn btn-dark"
                                     disabled={actionLoading}
+                                    aria-busy={actionLoading}
                                     onClick={() =>
                                       (job.payment_type || "secure") === "cash"
                                         ? acceptCashOffer(job, application)
                                         : chooseHelper(job, application)
                                     }
                                   >
-                                    {(job.payment_type || "secure") === "cash"
+                                    {actionLoading
                                       ? language === "en"
-                                        ? "Choose helper"
-                                        : "Izaberi pomagača"
-                                      : language === "en"
-                                        ? "Choose helper & pay"
-                                        : "Izaberi i plati"}
+                                        ? "Working..."
+                                        : "Obrađujem..."
+                                      : (job.payment_type || "secure") === "cash"
+                                        ? language === "en"
+                                          ? "Choose helper"
+                                          : "Izaberi pomagača"
+                                        : language === "en"
+                                          ? "Choose helper & pay"
+                                          : "Izaberi i plati"}
                                   </button>
                                 )}
                             </div>
@@ -2652,6 +2663,7 @@ try {
                             <button
                               className="btn btn-dark"
                               disabled={actionLoading}
+                              aria-busy={actionLoading}
                               onClick={() =>
                                 updateJobStatus(
                                   job,
@@ -2659,9 +2671,13 @@ try {
                                 )
                               }
                             >
-                              {language === "en"
-                                ? "Start job"
-                                : "Započni posao"}
+                              {actionLoading
+                                ? language === "en"
+                                  ? "Working..."
+                                  : "Obrađujem..."
+                                : language === "en"
+                                  ? "Start job"
+                                  : "Započni posao"}
                             </button>
                           </div>
                         )}
@@ -2676,6 +2692,7 @@ try {
                             <button
                               className="btn btn-dark"
                               disabled={actionLoading}
+                              aria-busy={actionLoading}
                               onClick={() =>
                                 updateJobStatus(
                                   job,
@@ -2683,9 +2700,17 @@ try {
                                 )
                               }
                             >
-                              {language === "en"
-                                ? "Mark as completed"
-                                : "Označi kao završeno"}
+                              {/* This is the button that releases held escrow
+                                  funds to the helper (Ch.10.2) — the loading
+                                  state matters here more than almost anywhere
+                                  else on the site. */}
+                              {actionLoading
+                                ? language === "en"
+                                  ? "Releasing payment..."
+                                  : "Oslobađam plaćanje..."
+                                : language === "en"
+                                  ? "Mark as completed"
+                                  : "Označi kao završeno"}
                             </button>
                           </div>
                         )}
@@ -2791,16 +2816,15 @@ try {
                 })}
               </div>
             ) : (
-              <div className="empty">
-                <p>{t.noMyTasks}</p>
-
-                <button
-                  className="btn btn-dark"
-                  onClick={openPostTask}
-                >
-                  {t.postTask}
-                </button>
-              </div>
+              <EmptyState
+                icon="📋"
+                title={t.noMyTasks}
+                action={
+                  <button className="btn btn-dark" onClick={openPostTask}>
+                    {t.postTask}
+                  </button>
+                }
+              />
             )}
           </div>
         </section>
@@ -2820,16 +2844,18 @@ try {
             </div>
 
             {!user ? (
-              <div className="empty">
-                <p>{t.loginRequired}</p>
-
-                <button
-                  className="btn btn-dark"
-                  onClick={() => setAuthOpen(true)}
-                >
-                  {t.login}
-                </button>
-              </div>
+              <EmptyState
+                icon="🔒"
+                title={t.loginRequired}
+                action={
+                  <button
+                    className="btn btn-dark"
+                    onClick={() => setAuthOpen(true)}
+                  >
+                    {t.login}
+                  </button>
+                }
+              />
             ) : helperJobs.length ? (
               <div className="dashboard-grid">
                 {helperJobs.map((job) => {
@@ -2937,16 +2963,18 @@ try {
                 })}
               </div>
             ) : (
-              <div className="empty">
-                <p>{t.noMyJobs}</p>
-
-                <button
-                  className="btn btn-dark"
-                  onClick={() => navigate("jobs")}
-                >
-                  {t.jobs}
-                </button>
-              </div>
+              <EmptyState
+                icon="💼"
+                title={t.noMyJobs}
+                action={
+                  <button
+                    className="btn btn-dark"
+                    onClick={() => navigate("jobs")}
+                  >
+                    {t.jobs}
+                  </button>
+                }
+              />
             )}
           </div>
         </section>
@@ -2966,16 +2994,18 @@ try {
             </div>
 
             {!user ? (
-              <div className="empty">
-                <p>{t.loginRequired}</p>
-
-                <button
-                  className="btn btn-dark"
-                  onClick={() => setAuthOpen(true)}
-                >
-                  {t.login}
-                </button>
-              </div>
+              <EmptyState
+                icon="🔒"
+                title={t.loginRequired}
+                action={
+                  <button
+                    className="btn btn-dark"
+                    onClick={() => setAuthOpen(true)}
+                  >
+                    {t.login}
+                  </button>
+                }
+              />
             ) : (
               <form
                 className="profile-form"
@@ -3091,8 +3121,11 @@ try {
       <button
         type="button"
         className="btn"
+        disabled={stripeConnectLoading}
+        aria-busy={stripeConnectLoading}
         onClick={async () => {
           setNotice("");
+          setStripeConnectLoading(true);
 
           try {
             // The route authenticates the caller and stores stripe_account_id
@@ -3105,10 +3138,15 @@ try {
           } catch (err) {
             console.error(err);
             setNotice(err.message);
+            setStripeConnectLoading(false);
           }
         }}
       >
-        💳 Connect Stripe
+        {stripeConnectLoading
+          ? language === "en"
+            ? "Connecting..."
+            : "Povezujem..."
+          : "💳 Connect Stripe"}
       </button>
     </div>
   )}
@@ -3134,20 +3172,28 @@ try {
         <button
           type="button"
           className="btn"
+          disabled={stripeConnectLoading}
+          aria-busy={stripeConnectLoading}
           onClick={async () => {
             setNotice("");
+            setStripeConnectLoading(true);
 
             try {
               const data = await authedFetch("/api/stripe/connect");
               window.location.href = data.url;
             } catch (err) {
               setNotice(err.message);
+              setStripeConnectLoading(false);
             }
           }}
         >
-          {language === "en"
-            ? "Finish Stripe verification"
-            : "Završi Stripe verifikaciju"}
+          {stripeConnectLoading
+            ? language === "en"
+              ? "Connecting..."
+              : "Povezujem..."
+            : language === "en"
+              ? "Finish Stripe verification"
+              : "Završi Stripe verifikaciju"}
         </button>
       </div>
     )}
