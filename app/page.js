@@ -602,10 +602,16 @@ const helperLevel = useMemo(
   async function loadMyApplications() {
     if (!user) return;
 
+    // pending_payment means the helper opened a commitment-fee checkout and did
+    // not finish it. Per Ch.9 step 3 that is not an application yet, so it is
+    // excluded here: it must not appear in their list, and it must not trip the
+    // duplicate-application check and lock them out of retrying. The commitment
+    // route reuses the row server-side when they try again.
     const { data, error } = await supabase
       .from("applications")
       .select("*")
       .eq("helper_id", user.id)
+      .neq("status", "pending_payment")
       .order("created_at", { ascending: false });
 
     if (error) {

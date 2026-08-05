@@ -6,6 +6,7 @@ import {
   commissionMinorUnits,
   getStripeCurrency,
 } from "../../../../lib/money";
+import { canPayForJob } from "../../../../lib/paymentRules";
 
 /**
  * Secure Payment checkout — the customer pays the full job amount up front and
@@ -54,25 +55,6 @@ export async function POST(request) {
 
     if (jobError) return apiError("Could not load the task.", 500, jobError);
 
-    if (!job) return apiError("Task not found.", 404);
-
-    if (job.owner_id !== user.id) {
-      return apiError("Only the task owner can pay for this task.", 403);
-    }
-
-    if ((job.payment_type || "secure") !== "secure") {
-      return apiError(
-        "This task uses Cash Payment — there is nothing to pay through the platform.",
-        409
-      );
-    }
-
-    // Blueprint Ch.10.6: a job that already has an assigned helper must never
-    // be paid for a second time.
-    if (job.status !== "open" || job.selected_helper_id) {
-      return apiError("This task is no longer open for hiring.", 409);
-    }
-
     const { data: application, error: applicationError } = await supabase
       .from("applications")
       .select("id, job_id, helper_id, offered_price, status")
@@ -83,54 +65,28 @@ export async function POST(request) {
       return apiError("Could not load the offer.", 500, applicationError);
     }
 
-    if (!application || application.job_id !== job.id) {
-      return apiError("Offer not found for this task.", 404);
-    }
-
-    // Blueprint Ch.30.4 / roadmap CRITICAL: withdrawn, rejected and expired
-    // offers must be rejected server-side, not just hidden in the UI.
-    if (application.status !== "pending") {
-      return apiError("This offer can no longer be accepted.", 409);
-    }
-
     const { data: helperProfile, error: helperError } = await supabase
       .from("profiles")
       .select("id, full_name, stripe_account_id, stripe_payouts_enabled, is_blocked")
-      .eq("id", application.helper_id)
+      .eq("id", application?.helper_id || "")
       .maybeSingle();
 
     if (helperError) {
       return apiError("Could not load the helper.", 500, helperError);
     }
 
-    if (!helperProfile) return apiError("Helper not found.", 404);
+    // All ownership, job-state, offer-state and payout-eligibility rules live in
+    // lib/paymentRules.js so they can be tested without a database.
+    const verdict = canPayForJob({
+      job,
+      application,
+      helperProfile,
+      actorId: user.id,
+    });
 
-    if (helperProfile.is_blocked) {
-      return apiError("This helper is not available.", 409);
-    }
+    if (!verdict.ok) return apiError(verdict.error, verdict.status);
 
-    if (!helperProfile.stripe_account_id) {
-      return apiError(
-        "This helper has not finished setting up payouts yet, so they cannot be hired for a Secure Payment task.",
-        409
-      );
-    }
-
-    // Blueprint Ch.8.3 / roadmap HIGH: never take a customer's money for a
-    // helper Stripe cannot pay out to.
-    if (!helperProfile.stripe_payouts_enabled) {
-      return apiError(
-        "This helper still has to complete their Stripe verification before they can be paid.",
-        409
-      );
-    }
-
-    const amountKm = Number(application.offered_price ?? job.price);
-
-    if (!Number.isFinite(amountKm) || amountKm <= 0) {
-      return apiError("This offer has no valid price.", 409);
-    }
-
+    const amountKm = verdict.amountKm;
     const currency = getStripeCurrency();
     const amountMinor = kmToStripeMinorUnits(amountKm);
     const commissionMinor = commissionMinorUnits(amountMinor);

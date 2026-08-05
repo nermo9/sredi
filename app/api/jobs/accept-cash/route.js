@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getStripe } from "../../../../lib/stripe";
 import { requireUser, apiError } from "../../../../lib/apiAuth";
+import { canAcceptCashOffer } from "../../../../lib/paymentRules";
 
 /**
  * Accepts an offer on a Cash Payment task — Blueprint Ch.9 steps 4 and 5.
@@ -40,45 +41,26 @@ export async function POST(request) {
       .eq("id", jobId)
       .maybeSingle();
 
-    if (!job) return apiError("Task not found.", 404);
-
-    if (job.owner_id !== user.id) {
-      return apiError("Only the task owner can select a helper.", 403);
-    }
-
-    if ((job.payment_type || "secure") !== "cash") {
-      return apiError("This task requires payment through the platform.", 409);
-    }
-
-    if (job.status !== "open" || job.selected_helper_id) {
-      return apiError("This task is no longer open for hiring.", 409);
-    }
-
     const { data: application } = await supabase
       .from("applications")
       .select("id, job_id, helper_id, status")
       .eq("id", applicationId)
       .maybeSingle();
 
-    if (!application || application.job_id !== job.id) {
-      return apiError("Offer not found for this task.", 404);
-    }
-
-    // Ch.30.4: only a genuinely pending offer can be accepted. A
-    // pending_payment offer has not paid its commitment fee yet.
-    if (application.status !== "pending") {
-      return apiError("This offer can no longer be accepted.", 409);
-    }
-
     const { data: helperProfile } = await supabase
       .from("profiles")
       .select("id, is_blocked")
-      .eq("id", application.helper_id)
+      .eq("id", application?.helper_id || "")
       .maybeSingle();
 
-    if (!helperProfile || helperProfile.is_blocked) {
-      return apiError("This helper is not available.", 409);
-    }
+    const verdict = canAcceptCashOffer({
+      job,
+      application,
+      helperProfile,
+      actorId: user.id,
+    });
+
+    if (!verdict.ok) return apiError(verdict.error, verdict.status);
 
     await supabase
       .from("jobs")

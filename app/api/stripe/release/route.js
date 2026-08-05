@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getStripe } from "../../../../lib/stripe";
 import { requireUser, apiError } from "../../../../lib/apiAuth";
+import { canReleaseEscrow } from "../../../../lib/paymentRules";
 
 /**
  * Releases held escrow funds to the helper — Blueprint Ch.8.2 step 3 and
@@ -41,75 +42,53 @@ export async function POST(request) {
 
     if (jobError) return apiError("Could not load the task.", 500, jobError);
 
-    if (!job) return apiError("Task not found.", 404);
-
     const { data: actor } = await supabase
       .from("profiles")
       .select("id, admin_role")
       .eq("id", user.id)
       .maybeSingle();
 
-    // Ch.35.1: finance actions are restricted to the finance and super admin
-    // roles — a Support Agent or Moderator must not be able to move money.
-    const isFinanceAdmin = ["finance_admin", "super_admin"].includes(
-      actor?.admin_role || ""
-    );
-
-    if (job.owner_id !== user.id && !isFinanceAdmin) {
-      return apiError("You are not allowed to release this payment.", 403);
-    }
-
-    if (job.status !== "completed" && !isFinanceAdmin) {
-      return apiError(
-        "Funds are released once the task is confirmed completed.",
-        409
-      );
-    }
-
-    const { data: payment, error: paymentError } = await supabase
+    // Ordered newest-first and limited to one row rather than maybeSingle():
+    // a job can accumulate more than one payment row (a cancelled attempt
+    // followed by a successful one), and maybeSingle() errors outright on
+    // multiple matches, which would have blocked the payout entirely.
+    const { data: payments, error: paymentError } = await supabase
       .from("payments")
       .select("*")
-      .eq("job_id", job.id)
+      .eq("job_id", jobId)
       .eq("type", "secure_payment")
       .in("status", ["Succeeded", "Released"])
-      .maybeSingle();
+      .order("created_at", { ascending: false })
+      .limit(1);
 
     if (paymentError) {
       return apiError("Could not load the payment.", 500, paymentError);
     }
 
-    if (!payment) {
-      return apiError("No captured payment found for this task.", 404);
-    }
-
-    // Idempotent by design: a second call after a successful release is a
-    // no-op rather than a second transfer (Ch.8.4).
-    if (payment.status === "Released") {
-      return NextResponse.json({ released: true, alreadyReleased: true });
-    }
+    const payment = payments?.[0] || null;
 
     const { data: helperProfile } = await supabase
       .from("profiles")
       .select("id, stripe_account_id, stripe_payouts_enabled")
-      .eq("id", payment.payee_id || job.selected_helper_id)
+      .eq("id", payment?.payee_id || job?.selected_helper_id || "")
       .maybeSingle();
 
-    if (!helperProfile?.stripe_account_id) {
-      return apiError("The helper has no connected Stripe account.", 409);
+    const verdict = canReleaseEscrow({
+      job,
+      payment,
+      helperProfile,
+      actor: { id: user.id, admin_role: actor?.admin_role },
+    });
+
+    if (!verdict.ok) return apiError(verdict.error, verdict.status);
+
+    // Idempotent by design: a second call after a successful release is a
+    // no-op rather than a second transfer (Ch.8.4).
+    if (verdict.alreadyReleased) {
+      return NextResponse.json({ released: true, alreadyReleased: true });
     }
 
-    if (!helperProfile.stripe_payouts_enabled) {
-      return apiError(
-        "The helper's Stripe verification is incomplete, so funds cannot be released yet.",
-        409
-      );
-    }
-
-    const payoutMinor = payment.amount_minor - payment.commission_minor;
-
-    if (payoutMinor <= 0) {
-      return apiError("Nothing to release on this payment.", 409);
-    }
+    const { payoutMinor, isFinanceAdmin } = verdict;
 
     const transfer = await getStripe().transfers.create(
       {

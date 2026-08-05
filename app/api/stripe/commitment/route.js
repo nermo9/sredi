@@ -6,6 +6,7 @@ import {
   kmToStripeMinorUnits,
   getStripeCurrency,
 } from "../../../../lib/money";
+import { canApplyWithCommitment } from "../../../../lib/paymentRules";
 
 /**
  * Cash Payment commitment fee — Blueprint Ch.9 and Ch.10.3.
@@ -53,23 +54,6 @@ export async function POST(request) {
 
     if (jobError) return apiError("Could not load the task.", 500, jobError);
 
-    if (!job) return apiError("Task not found.", 404);
-
-    if (job.owner_id === user.id) {
-      return apiError("You cannot apply to your own task.", 403);
-    }
-
-    if (job.status !== "open" || job.selected_helper_id) {
-      return apiError("This task is no longer open for offers.", 409);
-    }
-
-    if ((job.payment_type || "secure") !== "cash") {
-      return apiError(
-        "This task uses Secure Payment — no commitment fee applies.",
-        409
-      );
-    }
-
     // Blueprint Ch.30.1 / roadmap HIGH: verification-to-apply is a server-side
     // gate, not a UI gate.
     const { data: helperProfile } = await supabase
@@ -78,13 +62,13 @@ export async function POST(request) {
       .eq("id", user.id)
       .maybeSingle();
 
-    if (!helperProfile?.is_helper) {
-      return apiError("Only helpers can apply to tasks.", 403);
-    }
+    const verdict = canApplyWithCommitment({
+      job,
+      helperProfile,
+      actorId: user.id,
+    });
 
-    if (helperProfile.is_blocked) {
-      return apiError("Your account cannot apply to tasks right now.", 403);
-    }
+    if (!verdict.ok) return apiError(verdict.error, verdict.status);
 
     const feeKm = commitmentFeeKm(offeredPrice);
     const currency = getStripeCurrency();
