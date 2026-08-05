@@ -393,6 +393,7 @@ const helperLevel = useMemo(
     category: "Čišćenje",
     city: "",
     price: "",
+    payment_type: "secure",
   });
 
   const [applicationForm, setApplicationForm] = useState({
@@ -478,6 +479,41 @@ const helperLevel = useMemo(
       loadApplicationsForOwnedJobs();
     }
   }, [user, jobs]);
+
+  // When a helper returns from Stripe-hosted onboarding, pull their live
+  // capability status instead of assuming success (Ch.8.3). The account.updated
+  // webhook covers the case where verification finishes later, off-site.
+  useEffect(() => {
+    if (!user) return;
+
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get("stripe") !== "success") return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await authedFetch("/api/stripe/connect", null, "GET");
+
+        if (cancelled) return;
+
+        await loadProfile(user);
+
+        setView("profile");
+
+        window.history.replaceState({}, "", window.location.pathname);
+      } catch (err) {
+        console.error("Stripe status sync error:", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   async function loadProfile(currentUser = user) {
     if (!currentUser) return;
@@ -609,10 +645,13 @@ async function loadApplicationsForOwnedJobs() {
     return;
   }
 
+  // Ch.9 step 3: an application whose commitment fee has not cleared yet is
+  // never shown to the customer.
   const { data, error } = await supabase
     .from("applications")
     .select("*")
     .in("job_id", ownedIds)
+    .neq("status", "pending_payment")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -741,6 +780,7 @@ try {
           : Number(jobForm.price),
       status: "open",
       image_urls: uploadedImages,
+      payment_type: jobForm.payment_type === "cash" ? "cash" : "secure",
     };
 
     const { data, error } = await supabase
@@ -764,6 +804,7 @@ try {
       category: "Čišćenje",
       city: "",
       price: "",
+      payment_type: "secure",
     });
 
     setJobImages([]);
@@ -808,6 +849,43 @@ try {
     setActionLoading(true);
     setNotice("");
 
+    // Cash Payment tasks: the helper pays a 10% commitment fee to apply, and
+    // the application only becomes visible to the customer once it clears
+    // (Blueprint Ch.9). This goes through Stripe Checkout rather than a direct
+    // insert, so the redirect below replaces the normal insert path.
+    if ((selectedJob.payment_type || "secure") === "cash") {
+      if (
+        applicationForm.offeredPrice === "" ||
+        Number(applicationForm.offeredPrice) <= 0
+      ) {
+        setActionLoading(false);
+
+        setNotice(
+          language === "en"
+            ? "Enter your price — the 10% commitment fee is calculated from it."
+            : "Unesi svoju cijenu — obaveza od 10% se računa iz nje."
+        );
+
+        return;
+      }
+
+      try {
+        const data = await authedFetch("/api/stripe/commitment", {
+          jobId: selectedJob.id,
+          offeredPrice: Number(applicationForm.offeredPrice),
+          message: applicationForm.message.trim(),
+        });
+
+        window.location.href = data.url;
+      } catch (err) {
+        console.error(err);
+        setNotice(err.message);
+        setActionLoading(false);
+      }
+
+      return;
+    }
+
     const { data, error } = await supabase
       .from("applications")
       .insert({
@@ -846,54 +924,105 @@ try {
     );
   }
 
-async function chooseHelper(job, application) {
-  if (!user || job.owner_id !== user.id) return;
+  // Returns the caller's Supabase access token so API routes can authenticate
+  // the request. The routes no longer trust ids sent in the body.
+  async function getAccessToken() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-  setActionLoading(true);
-  setNotice("");
+    return session?.access_token || "";
+  }
 
-  try {
-    console.log("Application:", application);
+  async function authedFetch(url, body, method = "POST") {
+    const token = await getAccessToken();
 
-    const { data: helperProfile } = await supabase
-  .from("profiles")
-  .select("stripe_account_id")
-  .eq("id", application.helper_id)
-  .single();
-  alert(
-  "helper_id = " +
-  application.helper_id +
-  "\n\nhelperProfile = " +
-  JSON.stringify(helperProfile)
-);
-console.log("Helper ID:", application.helper_id);
-alert("Lige før fetch");
-    const response = await fetch("/api/stripe/checkout", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-body: JSON.stringify({
-  amount: application.offered_price || job.price,
-  stripeAccountId: helperProfile.stripe_account_id,
-  jobId: job.id,
-  applicationId: application.id,
-  }),
-  });
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error);
+    if (!token) {
+      throw new Error(
+        language === "en"
+          ? "Your session has expired. Please sign in again."
+          : "Sesija je istekla. Prijavi se ponovo."
+      );
     }
 
-    window.location.href = data.url;
-  } catch (err) {
-    console.error(err);
-    setNotice(err.message);
-    setActionLoading(false);
+    const response = await fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+          (language === "en"
+            ? "Something went wrong. Please try again."
+            : "Nešto je pošlo po zlu. Pokušaj ponovo.")
+      );
+    }
+
+    return data;
   }
-}
+
+  // Secure Payment: the customer pays the full amount into escrow. The helper
+  // is assigned by the Stripe webhook, and the money is only released to them
+  // once the task is confirmed completed.
+  async function chooseHelper(job, application) {
+    if (!user || job.owner_id !== user.id) return;
+
+    setActionLoading(true);
+    setNotice("");
+
+    try {
+      // The amount and the helper's Stripe account are resolved server-side
+      // from the application row — sending them from here was manipulable.
+      const data = await authedFetch("/api/stripe/checkout", {
+        jobId: job.id,
+        applicationId: application.id,
+      });
+
+      window.location.href = data.url;
+    } catch (err) {
+      console.error(err);
+      setNotice(err.message);
+      setActionLoading(false);
+    }
+  }
+
+  // Cash Payment: no money moves through the platform, so the customer accepts
+  // an offer directly. The applicant already paid their commitment fee, and the
+  // rejected applicants are refunded automatically server-side.
+  async function acceptCashOffer(job, application) {
+    if (!user || job.owner_id !== user.id) return;
+
+    setActionLoading(true);
+    setNotice("");
+
+    try {
+      await authedFetch("/api/jobs/accept-cash", {
+        jobId: job.id,
+        applicationId: application.id,
+      });
+
+      await loadJobs();
+      await loadApplicationsForOwnedJobs();
+
+      setNotice(
+        language === "en"
+          ? "Helper selected. You pay them in cash directly."
+          : "Izvođač je izabran. Plaćanje ide gotovinom direktno."
+      );
+    } catch (err) {
+      console.error(err);
+      setNotice(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   async function updateJobStatus(job, status) {
     if (!user) return;
@@ -926,6 +1055,29 @@ body: JSON.stringify({
     if (error) {
       setNotice(error.message);
       return;
+    }
+
+    // Blueprint Ch.10.2: completion confirmation by the customer is what
+    // releases the held escrow funds to the helper. Acceptance never does.
+    if (
+      status === "completed" &&
+      job.owner_id === user.id &&
+      (job.payment_type || "secure") === "secure"
+    ) {
+      try {
+        await authedFetch("/api/stripe/release", { jobId: job.id });
+      } catch (releaseError) {
+        console.error("Release error:", releaseError);
+
+        setNotice(
+          language === "en"
+            ? "The task is completed, but the payout could not be released yet. Our team has been notified."
+            : "Zadatak je završen, ali isplata još nije oslobođena. Naš tim je obaviješten."
+        );
+
+        await loadJobs();
+        return;
+      }
     }
 
     await loadJobs();
@@ -2755,17 +2907,19 @@ body: JSON.stringify({
                                   <button
                                     className="btn btn-dark"
                                     disabled={actionLoading}
-                                    onClick={() => {
-
-  chooseHelper(
-    job,
-    application
-  );
-}}
+                                    onClick={() =>
+                                      (job.payment_type || "secure") === "cash"
+                                        ? acceptCashOffer(job, application)
+                                        : chooseHelper(job, application)
+                                    }
                                   >
-                                    {language === "en"
-                                      ? "Choose helper"
-                                      : "Izaberi pomagača"}
+                                    {(job.payment_type || "secure") === "cash"
+                                      ? language === "en"
+                                        ? "Choose helper"
+                                        : "Izaberi pomagača"
+                                      : language === "en"
+                                        ? "Choose helper & pay"
+                                        : "Izaberi i plati"}
                                   </button>
                                 )}
                             </div>
@@ -3214,38 +3368,19 @@ body: JSON.stringify({
         type="button"
         className="btn"
         onClick={async () => {
+          setNotice("");
+
           try {
-            const response = await fetch("/api/stripe/connect", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                userId: user.id,
-              }),
-            });
+            // The route authenticates the caller and stores stripe_account_id
+            // itself — the browser must not be able to claim an account id,
+            // and writing it here marked helpers "connected" before Stripe had
+            // actually verified them.
+            const data = await authedFetch("/api/stripe/connect");
 
-            const data = await response.json();
-
-if (data.error) {
-  alert(data.error);
-  return;
-}
-
-// Gem Stripe-kontoen på brugerens profil
-await supabase
-  .from("profiles")
-  .update({
-    stripe_account_id: data.accountId,
-    stripe_connected: true,
-  })
-  .eq("id", user.id);
-
-// Send brugeren til Stripe
-window.location.href = data.url;
+            window.location.href = data.url;
           } catch (err) {
             console.error(err);
-            alert("Could not connect to Stripe.");
+            setNotice(err.message);
           }
         }}
       >
@@ -3253,20 +3388,55 @@ window.location.href = data.url;
       </button>
     </div>
   )}
-  {profile?.stripe_connected && (
-  <div
-    style={{
-      marginBottom: 20,
-      padding: 12,
-      background: "#e8f8ee",
-      color: "#15803d",
-      borderRadius: 8,
-      fontWeight: 600,
-    }}
-  >
-    ✅ Stripe connected
-  </div>
-)}
+  {/* Ch.8.3: "connected" means Stripe reports payouts_enabled, not merely
+      that an account was created. A half-finished onboarding must say so,
+      because such a helper cannot be hired for a Secure Payment task. */}
+  {profileForm.is_helper &&
+    profile?.stripe_account_id &&
+    !profile?.stripe_payouts_enabled && (
+      <div className="stripe-status stripe-status--pending">
+        <strong>
+          {language === "en"
+            ? "Stripe verification incomplete"
+            : "Stripe verifikacija nije završena"}
+        </strong>
+
+        <p>
+          {language === "en"
+            ? "You can receive offers, but customers cannot hire you for Secure Payment tasks until Stripe finishes verifying you."
+            : "Možeš slati ponude, ali te naručioci ne mogu angažovati za zadatke sa sigurnim plaćanjem dok Stripe ne završi verifikaciju."}
+        </p>
+
+        <button
+          type="button"
+          className="btn"
+          onClick={async () => {
+            setNotice("");
+
+            try {
+              const data = await authedFetch("/api/stripe/connect");
+              window.location.href = data.url;
+            } catch (err) {
+              setNotice(err.message);
+            }
+          }}
+        >
+          {language === "en"
+            ? "Finish Stripe verification"
+            : "Završi Stripe verifikaciju"}
+        </button>
+      </div>
+    )}
+
+  {profile?.stripe_payouts_enabled && (
+    <div className="stripe-status stripe-status--ok">
+      <strong>
+        {language === "en"
+          ? "Stripe connected — you can be paid"
+          : "Stripe povezan — možeš primati uplate"}
+      </strong>
+    </div>
+  )}
 <div>
   <button
     className="btn btn-dark"
@@ -3639,6 +3809,71 @@ window.location.href = data.url;
                 />
               </label>
 
+              {/* Ch.10.1: payment type is chosen at creation and becomes
+                  immutable once the first offer arrives. Ch.9: cash tasks must
+                  disclose that the job amount is NOT held by the platform. */}
+              <fieldset className="field payment-type-field">
+                <legend>
+                  {language === "en" ? "How will you pay?" : "Kako plaćaš?"}
+                </legend>
+
+                <label className="payment-type-option">
+                  <input
+                    type="radio"
+                    name="payment_type"
+                    value="secure"
+                    checked={jobForm.payment_type === "secure"}
+                    onChange={() =>
+                      setJobForm((current) => ({
+                        ...current,
+                        payment_type: "secure",
+                      }))
+                    }
+                  />
+
+                  <span>
+                    <strong>
+                      {language === "en"
+                        ? "Secure Payment"
+                        : "Sigurno plaćanje"}
+                    </strong>
+
+                    <small>
+                      {language === "en"
+                        ? "You pay now, Sredi.ba holds the money, and the helper is paid only after you confirm the task is done."
+                        : "Platiš odmah, Sredi.ba zadržava novac, a izvođač se isplaćuje tek kad potvrdiš da je posao gotov."}
+                    </small>
+                  </span>
+                </label>
+
+                <label className="payment-type-option">
+                  <input
+                    type="radio"
+                    name="payment_type"
+                    value="cash"
+                    checked={jobForm.payment_type === "cash"}
+                    onChange={() =>
+                      setJobForm((current) => ({
+                        ...current,
+                        payment_type: "cash",
+                      }))
+                    }
+                  />
+
+                  <span>
+                    <strong>
+                      {language === "en" ? "Cash Payment" : "Plaćanje gotovinom"}
+                    </strong>
+
+                    <small>
+                      {language === "en"
+                        ? "You pay the helper in cash directly. Sredi.ba does not hold or protect this amount — only the helper pays a 10% fee to apply."
+                        : "Izvođaču plaćaš gotovinom direktno. Sredi.ba ne zadržava niti štiti ovaj iznos — samo izvođač plaća 10% da bi se prijavio."}
+                    </small>
+                  </span>
+                </label>
+              </fieldset>
+
               <button
                 className="btn btn-dark"
                 type="submit"
@@ -3832,6 +4067,37 @@ window.location.href = data.url;
                   />
                 </label>
 
+                {/* Ch.9 / Ch.10.3: the helper sees the exact fee before they
+                    commit, and that it comes back if they are not chosen. */}
+                {(selectedJob.payment_type || "secure") === "cash" && (
+                  <div className="commitment-notice">
+                    <strong>
+                      {language === "en"
+                        ? "Cash task — 10% commitment fee"
+                        : "Zadatak s gotovinom — obaveza 10%"}
+                    </strong>
+
+                    <p>
+                      {applicationForm.offeredPrice &&
+                      Number(applicationForm.offeredPrice) > 0
+                        ? language === "en"
+                          ? `You pay ${formatPrice(
+                              Math.round(
+                                Number(applicationForm.offeredPrice) * 10
+                              ) / 100
+                            )} now to send this offer. It is refunded in full if you are not chosen. The task amount itself is paid to you in cash and is not held by Sredi.ba.`
+                          : `Sada plaćaš ${formatPrice(
+                              Math.round(
+                                Number(applicationForm.offeredPrice) * 10
+                              ) / 100
+                            )} da bi poslao/la ponudu. Vraća se u cijelosti ako ne budeš izabran/a. Sam iznos posla ti se plaća gotovinom i Sredi.ba ga ne zadržava.`
+                        : language === "en"
+                          ? "Enter your price to see the 10% commitment fee. It is refunded in full if you are not chosen."
+                          : "Unesi cijenu da vidiš obavezu od 10%. Vraća se u cijelosti ako ne budeš izabran/a."}
+                    </p>
+                  </div>
+                )}
+
                 <button
                   className="btn btn-dark"
                   type="submit"
@@ -3841,9 +4107,13 @@ window.location.href = data.url;
                     ? language === "en"
                       ? "Sending..."
                       : "Šaljem..."
-                    : language === "en"
-                      ? "Send offer"
-                      : "Pošalji ponudu"}
+                    : (selectedJob.payment_type || "secure") === "cash"
+                      ? language === "en"
+                        ? "Pay fee & send offer"
+                        : "Plati obavezu i pošalji"
+                      : language === "en"
+                        ? "Send offer"
+                        : "Pošalji ponudu"}
                 </button>
               </form>
             )}
@@ -3888,6 +4158,28 @@ function JobCard({
       <div className="job-meta">
         📍 {job.city} · {categoryLabel(job.category)}
       </div>
+
+      {/* Ch.26.2: a job card carries the payment type. Ch.9 requires the lack
+          of escrow on cash tasks to be visible before anyone commits, and
+          Ch.26.1 requires colour to be paired with a text label, never used
+          alone to convey the difference. */}
+      {!job.demo && (
+        <div className="job-meta">
+          <span
+            className={`payment-badge payment-badge--${
+              (job.payment_type || "secure") === "cash" ? "cash" : "secure"
+            }`}
+          >
+            {(job.payment_type || "secure") === "cash"
+              ? language === "en"
+                ? "Cash — not held by Sredi"
+                : "Gotovina — Sredi ne zadržava"
+              : language === "en"
+                ? "Secure Payment"
+                : "Sigurno plaćanje"}
+          </span>
+        </div>
+      )}
 
       <div className="job-description">
         {job.description}
