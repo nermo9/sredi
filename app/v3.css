@@ -2308,3 +2308,240 @@ button:disabled {
   background: #fef6e7;
   color: #92400e;
 }
+
+/* ---------------------------------------------------------------------------
+   DESIGN SYSTEM — Blueprint Ch.26 / Ch.54 / Ch.57
+   Tokens first, then the components that consume them. Ch.54: every component
+   consumes tokens, never hardcoded values.
+   --------------------------------------------------------------------------- */
+
+:root {
+  /* Ch.26.1 status colours. Each status is visually distinct, and every badge
+     pairs its colour with a text label — colour is never the only signal. */
+  --status-open: #1d4ed8;
+  --status-open-soft: #e6edfd;
+  --status-assigned: #6d28d9;
+  --status-assigned-soft: #f0e9fd;
+  --status-progress: #c2410c;
+  --status-progress-soft: #fdeee4;
+  --status-completed: #15803d;
+  --status-completed-soft: #e8f8ee;
+  --status-cancelled: #b91c1c;
+  --status-cancelled-soft: #fdeaea;
+  --status-expired: #44403c;
+  --status-expired-soft: #eeecea;
+  --status-archived: #6b7280;
+  --status-archived-soft: #f1f2f4;
+
+  /* Ch.26.1: 8px base unit for all spacing increments. */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+
+  /* Ch.26.5 / Ch.58: minimum comfortable tap target on mobile. */
+  --tap-target: 44px;
+
+  --focus-ring: 0 0 0 3px rgba(29, 78, 216, 0.35);
+}
+
+/* Status badges --------------------------------------------------------- */
+
+.status--open {
+  background: var(--status-open-soft);
+  color: var(--status-open);
+}
+
+.status--assigned {
+  background: var(--status-assigned-soft);
+  color: var(--status-assigned);
+}
+
+.status--in_progress {
+  background: var(--status-progress-soft);
+  color: var(--status-progress);
+}
+
+.status--completed {
+  background: var(--status-completed-soft);
+  color: var(--status-completed);
+}
+
+.status--cancelled {
+  background: var(--status-cancelled-soft);
+  color: var(--status-cancelled);
+}
+
+.status--expired {
+  background: var(--status-expired-soft);
+  color: var(--status-expired);
+}
+
+.status--archived,
+.status--demo {
+  background: var(--status-archived-soft);
+  color: var(--status-archived);
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+/* Empty states (Ch.26.3) ------------------------------------------------ */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-3);
+}
+
+.empty-icon {
+  font-size: 40px;
+  line-height: 1;
+  margin-bottom: var(--space-1);
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #17231e;
+}
+
+.empty-description {
+  margin: 0;
+  max-width: 42ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.empty-action {
+  margin-top: var(--space-1);
+}
+
+/* Skeleton loaders (Ch.26.3) -------------------------------------------- */
+
+.skeleton {
+  border-radius: 8px;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.65),
+    transparent
+  );
+  animation: skeleton-sweep 1.4s infinite;
+}
+
+@keyframes skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-line {
+  height: 12px;
+  margin-bottom: var(--space-1);
+}
+
+.skeleton-line--title {
+  height: 18px;
+  width: 70%;
+}
+
+.skeleton-line--meta {
+  width: 45%;
+}
+
+.skeleton-line--short {
+  width: 60%;
+}
+
+.skeleton-line--price {
+  height: 18px;
+  width: 72px;
+  margin-bottom: 0;
+}
+
+.skeleton-line--badge {
+  height: 26px;
+  width: 96px;
+  border-radius: 999px;
+  margin-bottom: 0;
+}
+
+.skeleton-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+
+.job-card--skeleton {
+  pointer-events: none;
+}
+
+.job-grid-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-2);
+}
+
+/* Accessibility (Ch.26.5) ----------------------------------------------- */
+
+/* Visible keyboard focus on every interactive element. The browser default was
+   being suppressed by the reset, leaving keyboard users with no indicator. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--status-open);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+/* Ch.26.5: large tap targets. Applies on touch pointers only so dense desktop
+   layouts are unaffected. */
+@media (pointer: coarse) {
+  .btn,
+  .nav-item,
+  .mobile-nav button {
+    min-height: var(--tap-target);
+  }
+}
+
+/* Ch.26.2: a button must never look interactive while it is submitting —
+   this is what stops a double-click becoming a duplicate payment. */
+.btn:disabled,
+.btn[aria-busy="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Screen-reader-only helper for labels that must exist but not be shown. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

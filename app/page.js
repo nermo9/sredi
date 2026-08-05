@@ -6,340 +6,26 @@ import Sidebar from "../components/Sidebar";
 import MobileNav from "../components/MobileNav";
 import V2Topbar from "../components/V2Topbar";
 import V2Hero from "../components/V2Hero";
+import Icon from "../components/Icon";
+import JobCard from "../components/JobCard";
+import HowCard from "../components/HowCard";
+import StatusBadge from "../components/StatusBadge";
+import EmptyState from "../components/EmptyState";
+import JobCardSkeleton from "../components/JobCardSkeleton";
 import { supabase } from "../lib/supabase";
+import { categories, demoJobs } from "../lib/catalog";
+import {
+  getInitials,
+  getCategoryIcon,
+  formatPrice,
+  normalizeStatus,
+  getHelperLevel,
+} from "../lib/format";
 import {
   translations,
   categoryTranslations,
 } from "./translations";
 
-const categories = [
-  { icon: "cleaning", name: "Čišćenje" },
-  { icon: "moving", name: "Selidbe" },
-  { icon: "garden", name: "Kuća & bašta" },
-  { icon: "tools", name: "Montaža" },
-  { icon: "car", name: "Prevoz" },
-  { icon: "hand", name: "Praktična pomoć" },
-  { icon: "home", name: "Nekretnine" },
-  { icon: "grid", name: "Ostalo" },
-];
-
-const demoJobs = [
-  {
-    id: "demo-1",
-    demo: true,
-    icon: "🧹",
-    title: "Čišćenje stana",
-    city: "Sarajevo",
-    category: "Čišćenje",
-    price: 80,
-    description: "Potrebna pomoć oko generalnog čišćenja stana.",
-    owner: "Amir K.",
-    status: "open",
-  },
-  {
-    id: "demo-2",
-    demo: true,
-    icon: "📦",
-    title: "Pomoć pri selidbi",
-    city: "Mostar",
-    category: "Selidbe",
-    price: 120,
-    description: "Potrebna pomoć pri nošenju stvari i selidbi.",
-    owner: "Lejla M.",
-    status: "open",
-  },
-  {
-    id: "demo-3",
-    demo: true,
-    icon: "🌿",
-    title: "Sređivanje bašte",
-    city: "Tuzla",
-    category: "Kuća & bašta",
-    price: 100,
-    description: "Košenje trave i osnovno sređivanje bašte.",
-    owner: "Haris S.",
-    status: "open",
-  },
-  {
-    id: "demo-4",
-    demo: true,
-    icon: "🔧",
-    title: "Montaža ormara",
-    city: "Banja Luka",
-    category: "Montaža",
-    price: 90,
-    description: "Potrebna montaža novog ormara.",
-    owner: "Jasmina D.",
-    status: "open",
-  },
-];
-
-function getInitials(name = "") {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-
-  if (!parts.length) return "SR";
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}
-
-function getCategoryIcon(category) {
-  return (
-    categories.find((item) => item.name === category)?.icon || "✨"
-  );
-}
-
-function formatPrice(price) {
-  const number = Number(price);
-
-  if (!Number.isFinite(number)) return "Po dogovoru";
-
-  return `${number.toLocaleString("bs-BA")} KM`;
-}
-
-function normalizeStatus(status) {
-  if (!status) return "open";
-
-  const value = String(status).toLowerCase();
-
-  if (["assigned", "accepted"].includes(value)) return "assigned";
-
-  if (["in_progress", "progress", "active"].includes(value)) {
-    return "in_progress";
-  }
-
-  if (["completed", "done"].includes(value)) return "completed";
-
-  if (["cancelled", "canceled"].includes(value)) {
-    return "cancelled";
-  }
-
-  return "open";
-}
-function Icon({
-  name,
-  size = 20,
-  className = "",
-  filled = false,
-}) {
-  const paths = {
-    cleaning: (
-      <>
-        <path d="M7 3h10" />
-        <path d="M9 3v5" />
-        <path d="M15 3v5" />
-        <path d="M7 8h10l1 12H6L7 8Z" />
-        <path d="M9 14h6" />
-      </>
-    ),
-
-    moving: (
-      <>
-        <path d="M4 7 12 3l8 4-8 4-8-4Z" />
-        <path d="M4 7v10l8 4 8-4V7" />
-        <path d="M12 11v10" />
-      </>
-    ),
-
-    garden: (
-      <>
-        <path d="M12 21V9" />
-        <path d="M12 13c-4 0-7-2.5-7-6 4 0 7 2 7 6Z" />
-        <path d="M12 10c3.8 0 6-2.2 6-5-3.8 0-6 2.2-6 5Z" />
-      </>
-    ),
-
-    tools: (
-      <>
-        <path d="m14 6 4-4 4 4-4 4" />
-        <path d="m16 8-9.5 9.5a2.12 2.12 0 1 1-3-3L13 5" />
-      </>
-    ),
-
-    car: (
-      <>
-        <path d="M5 17h14" />
-        <path d="M6 17 4 13l2-6h12l2 6-2 4" />
-        <circle cx="7" cy="17" r="2" />
-        <circle cx="17" cy="17" r="2" />
-        <path d="M5 13h14" />
-      </>
-    ),
-
-    hand: (
-      <>
-        <path d="M8 11V6a2 2 0 0 1 4 0v5" />
-        <path d="M12 10V5a2 2 0 0 1 4 0v7" />
-        <path d="M16 10V7a2 2 0 0 1 4 0v7c0 5-3 7-7 7h-1c-3 0-5-2-7-5l-2-3a2 2 0 0 1 3-2l2 2" />
-      </>
-    ),
-
-    home: (
-      <>
-        <path d="m3 11 9-8 9 8" />
-        <path d="M5 10v11h14V10" />
-        <path d="M9 21v-6h6v6" />
-      </>
-    ),
-
-    grid: (
-      <>
-        <rect x="4" y="4" width="6" height="6" rx="1" />
-        <rect x="14" y="4" width="6" height="6" rx="1" />
-        <rect x="4" y="14" width="6" height="6" rx="1" />
-        <rect x="14" y="14" width="6" height="6" rx="1" />
-      </>
-    ),
-
-    location: (
-      <>
-        <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
-        <circle cx="12" cy="10" r="2.5" />
-      </>
-    ),
-
-    user: (
-      <>
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 21c.8-4 3.5-6 8-6s7.2 2 8 6" />
-      </>
-    ),
-
-    clipboard: (
-      <>
-        <rect x="5" y="4" width="14" height="17" rx="2" />
-        <path d="M9 4V2h6v2" />
-        <path d="M9 10h6" />
-        <path d="M9 14h6" />
-      </>
-    ),
-
-    briefcase: (
-      <>
-        <rect x="3" y="7" width="18" height="13" rx="2" />
-        <path d="M8 7V4h8v3" />
-        <path d="M3 12h18" />
-      </>
-    ),
-
-    logout: (
-      <>
-        <path d="M10 5H5v14h5" />
-        <path d="M14 8l4 4-4 4" />
-        <path d="M18 12H9" />
-      </>
-    ),
-
-    upload: (
-      <>
-        <path d="M12 16V4" />
-        <path d="m7 9 5-5 5 5" />
-        <path d="M5 20h14" />
-      </>
-    ),
-
-    image: (
-      <>
-        <rect x="3" y="4" width="18" height="16" rx="2" />
-        <circle cx="9" cy="9" r="2" />
-        <path d="m21 15-5-5L5 20" />
-      </>
-    ),
-
-    close: (
-      <>
-        <path d="M6 6l12 12" />
-        <path d="M18 6 6 18" />
-      </>
-    ),
-
-    arrow: (
-      <>
-        <path d="M5 12h14" />
-        <path d="m14 7 5 5-5 5" />
-      </>
-    ),
-
-    star: (
-      <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" />
-    ),
-
-    check: <path d="m5 12 4 4L19 6" />,
-
-    search: (
-      <>
-        <circle cx="11" cy="11" r="7" />
-        <path d="m20 20-4-4" />
-      </>
-    ),
-  award: (
-  <>
-    <circle cx="12" cy="8" r="5" />
-    <path d="M8.5 12 7 22l5-3 5 3-1.5-10" />
-    <path d="m10 8 1.3 1.3L14 6.5" />
-  </>
-),
-  };
-
-  return (
-    <span
-      className={`ui-icon ${className}`}
-      style={{ width: size, height: size }}
-    >
-      <svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill={name === "star" && filled ? "currentColor" : "none"}
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        {paths[name] || paths.grid}
-      </svg>
-    </span>
-  );
-}
-function getHelperLevel(completedJobs) {
-  const count = Number(completedJobs || 0);
-
-  if (count >= 50) {
-    return {
-      name: "Diamond",
-      className: "level-diamond",
-    };
-  }
-
-  if (count >= 20) {
-    return {
-      name: "Gold",
-      className: "level-gold",
-    };
-  }
-
-  if (count >= 10) {
-    return {
-      name: "Silver",
-      className: "level-silver",
-    };
-  }
-
-  if (count >= 5) {
-    return {
-      name: "Bronze",
-      className: "level-bronze",
-    };
-  }
-
-  return {
-    name: "New",
-    className: "level-new",
-  };
-}
 export default function Home() {
   const [language, setLanguage] = useState("bs");
 
@@ -1455,11 +1141,21 @@ try {
   }
 
   if (loading) {
+    // Ch.26.3: an API-backed view shows skeletons, never a blank screen. The
+    // skeleton grid mirrors the real job grid so the layout does not jump when
+    // the data arrives (which also keeps CLS down — Ch.42).
     return (
       <main className="v2-shell">
-        <div className="loading-screen">
-          <strong>SREDI.ba</strong>
-          <span>{t.loading}</span>
+        <div className="container" style={{ paddingTop: 48, paddingBottom: 48 }}>
+          <p className="sr-only" role="status">
+            {t.loading}
+          </p>
+
+          <div className="job-grid-skeleton">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <JobCardSkeleton key={index} />
+            ))}
+          </div>
         </div>
       </main>
     );
@@ -2788,7 +2484,20 @@ try {
                 ))}
               </div>
             ) : (
-              <div className="empty">{t.noJobs}</div>
+              <EmptyState
+                icon="🔍"
+                title={t.noJobs}
+                description={
+                  language === "en"
+                    ? "Try a different city or category, or post the task yourself and let helpers come to you."
+                    : "Probaj drugi grad ili kategoriju, ili sam objavi zadatak pa neka ti se pomagači jave."
+                }
+                action={
+                  <button className="btn btn-dark" onClick={openPostTask}>
+                    {t.postTask}
+                  </button>
+                }
+              />
             )}
           </div>
         </section>
@@ -3183,11 +2892,14 @@ try {
                         normalizeStatus(job.status) ===
                           "assigned" && (
                           <div className="crm-meta">
-                            <span className="status">
-                              {language === "en"
-                                ? "You were selected"
-                                : "Izabran si za posao"}
-                            </span>
+                            <StatusBadge
+                              status="assigned"
+                              label={
+                                language === "en"
+                                  ? "You were selected"
+                                  : "Izabran si za posao"
+                              }
+                            />
                           </div>
                         )}
 
@@ -3195,11 +2907,14 @@ try {
                         normalizeStatus(job.status) ===
                           "in_progress" && (
                           <div className="crm-meta">
-                            <span className="status">
-                              {language === "en"
-                                ? "Job in progress"
-                                : "Posao je u toku"}
-                            </span>
+                            <StatusBadge
+                              status="in_progress"
+                              label={
+                                language === "en"
+                                  ? "Job in progress"
+                                  : "Posao je u toku"
+                              }
+                            />
                           </div>
                         )}
 
@@ -3207,11 +2922,14 @@ try {
                         normalizeStatus(job.status) ===
                           "completed" && (
                           <div className="crm-meta">
-                            <span className="status">
-                              {language === "en"
-                                ? "Job completed"
-                                : "Posao završen"}
-                            </span>
+                            <StatusBadge
+                              status="completed"
+                              label={
+                                language === "en"
+                                  ? "Job completed"
+                                  : "Posao završen"
+                              }
+                            />
                           </div>
                         )}
                     </div>
@@ -4139,85 +3857,4 @@ try {
   );
 }
 
-function JobCard({
-  job,
-  t,
-  language,
-  categoryLabel,
-  statusLabel,
-  onOpen,
-}) {
-  return (
-    <article className="job-card">
-      <div className="job-card-top">
-        <div className="job-icon">
-          {job.icon || getCategoryIcon(job.category)}
-        </div>
 
-        <div className="price">
-          {formatPrice(job.price)}
-        </div>
-      </div>
-
-      <h3>{job.title}</h3>
-
-      <div className="job-meta">
-        📍 {job.city} · {categoryLabel(job.category)}
-      </div>
-
-      {/* Ch.26.2: a job card carries the payment type. Ch.9 requires the lack
-          of escrow on cash tasks to be visible before anyone commits, and
-          Ch.26.1 requires colour to be paired with a text label, never used
-          alone to convey the difference. */}
-      {!job.demo && (
-        <div className="job-meta">
-          <span
-            className={`payment-badge payment-badge--${
-              (job.payment_type || "secure") === "cash" ? "cash" : "secure"
-            }`}
-          >
-            {(job.payment_type || "secure") === "cash"
-              ? language === "en"
-                ? "Cash — not held by Sredi"
-                : "Gotovina — Sredi ne zadržava"
-              : language === "en"
-                ? "Secure Payment"
-                : "Sigurno plaćanje"}
-          </span>
-        </div>
-      )}
-
-      <div className="job-description">
-        {job.description}
-      </div>
-
-      <div className="job-card-bottom">
-        <span
-          className={`status ${
-            job.demo ? "demo-badge" : ""
-          }`}
-        >
-          {job.demo
-            ? "Demo"
-            : statusLabel(job.status)}
-        </span>
-
-        <button className="btn" onClick={onOpen}>
-          {language === "en"
-            ? "View task"
-            : "Pogledaj zadatak"}
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function HowCard({ number, title, text }) {
-  return (
-    <div className="how-card">
-      <div className="step-number">{number}</div>
-      <h3>{title}</h3>
-      <p>{text}</p>
-    </div>
-  );
-}
