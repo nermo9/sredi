@@ -225,18 +225,31 @@ begin
   end if;
 
   -- Terminal states never move again.
-  if old.status in ('Refunded', 'Released', 'Cancelled') then
+  -- Explicit allowed-transition map rather than a terminal-state blocklist.
+  --
+  -- The blocklist version of this guard rejected two transitions that really
+  -- happen: a chargeback landing after the escrow was already released
+  -- (Released -> Disputed), and a dispute being resolved in the helper's favour
+  -- after the fact (Disputed -> Released). Blocking those would have made the
+  -- webhook silently unable to record a real chargeback, which is exactly the
+  -- "never silently drop a financial event" rule in Ch.10.11.
+  if not (
+    case old.status
+      when 'Pending'    then new.status in ('Processing', 'Succeeded', 'Failed', 'Cancelled')
+      when 'Processing' then new.status in ('Succeeded', 'Failed', 'Cancelled')
+      -- A cleared charge can be paid out, refunded, or disputed.
+      when 'Succeeded'  then new.status in ('Released', 'Refunded', 'Disputed')
+      -- Money already sent to the helper can still be clawed back.
+      when 'Released'   then new.status in ('Disputed', 'Refunded')
+      -- A dispute resolves either way.
+      when 'Disputed'   then new.status in ('Released', 'Refunded', 'Succeeded')
+      -- A failed charge may be retried.
+      when 'Failed'     then new.status in ('Pending', 'Cancelled')
+      -- Refunded and Cancelled are genuinely terminal.
+      else false
+    end
+  ) then
     raise exception 'Invalid payment transition % -> %', old.status, new.status;
-  end if;
-
-  -- Money can only be released out of a cleared charge.
-  if new.status = 'Released' and old.status <> 'Succeeded' then
-    raise exception 'Payment can only be Released from Succeeded, not %', old.status;
-  end if;
-
-  if new.status = 'Succeeded'
-     and old.status not in ('Pending', 'Processing') then
-    raise exception 'Payment can only Succeed from Pending/Processing, not %', old.status;
   end if;
 
   return new;

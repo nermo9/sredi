@@ -299,10 +299,17 @@ async function handleChargeRefunded(supabase, charge) {
 
   if (!paymentIntentId) return;
 
-  await supabase
+  const { error } = await supabase
     .from("payments")
     .update({ status: "Refunded", refunded_at: new Date().toISOString() })
     .eq("stripe_payment_intent_id", paymentIntentId);
+
+  // Ch.10.11: a refund we could not record must be visible, not swallowed.
+  // The database transition guard can legitimately reject this (e.g. the row
+  // is already Refunded), so this is logged rather than thrown.
+  if (error) {
+    console.error("[sredi:webhook] could not record refund", paymentIntentId, error);
+  }
 }
 
 async function handleDisputeCreated(supabase, dispute) {
@@ -313,10 +320,14 @@ async function handleDisputeCreated(supabase, dispute) {
 
   if (!paymentIntentId) return;
 
-  await supabase
+  const { error } = await supabase
     .from("payments")
     .update({ status: "Disputed" })
     .eq("stripe_payment_intent_id", paymentIntentId);
+
+  if (error) {
+    console.error("[sredi:webhook] could not record dispute", paymentIntentId, error);
+  }
 }
 
 /**
